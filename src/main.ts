@@ -1,74 +1,205 @@
 import './style.css';
 import { calico } from './cat';
-import { CAT, CROSS, EMPTY, Game, type SavedGame } from './game';
+import { CAT, COST, CROSS, EMPTY, Game, basePoints, type Mode, type SavedGame } from './game';
+import { LEVELS_PER_WORLD, WORLDS, decodeLevel, type LevelData } from './levels';
+import { loadPack } from './packs';
 import type { Puzzle } from './puzzle';
+import { TECH_NAMES, type Step } from './solver';
+import {
+  addTopScore, load, progress, save, saveProgress, saveSettings, settings, titleFor, totalPoints,
+} from './store';
+import { APP_VERSION, CHANGELOG, applyUpdate, watchForUpdates } from './update';
 
-/** Soft but distinct region colours (enough for 14×14). */
+/** Soft but distinct region colours (enough for 14×14). Order matches COLOR_NAMES in solver.ts. */
 const PALETTE = [
   '#f2899b', '#8fd18a', '#f6c85f', '#7fb3ee', '#b993e6', '#f5a066', '#5cc8bb',
   '#f4b9d8', '#c9e07a', '#a3a6f2', '#dcb38d', '#9fdcf5', '#d98fb5', '#b4c39c',
 ];
 
-interface Settings { autoCross: boolean; size: number }
-interface Progress { seed: Record<string, number>; solved: Record<string, number> }
-
-const store = {
-  get<T>(key: string, fallback: T): T {
-    try {
-      const v = localStorage.getItem('kk:' + key);
-      return v ? (JSON.parse(v) as T) : fallback;
-    } catch { return fallback; }
-  },
-  set(key: string, value: unknown) {
-    try { localStorage.setItem('kk:' + key, JSON.stringify(value)); } catch { /* storage unavailable */ }
-  },
-};
-
-const settings: Settings = { autoCross: true, size: 10, ...store.get<Partial<Settings>>('settings', {}) };
-const progress: Progress = { seed: {}, solved: {}, ...store.get<Partial<Progress>>('progress', {}) };
-
-const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+const homeEl = $('home');
+const gameEl = $('game');
 const boardEl = $('board');
 const trackerEl = $('tracker');
 const loadingEl = $('loading');
-const subtitleEl = $('subtitle');
 const toastEl = $('toast');
+const hintPanel = $('hint-panel');
 
+let pack: LevelData[] | null = null;
 let game: Game | null = null;
 let cells: HTMLDivElement[] = [];
 let flash = new Set<number>();
 
-// ---------- Puzzle loading ----------
+// ---------- Helpers ----------
+
+let toastTimer = 0;
+function toast(text: string, kind: 'info' | 'bad' = 'info') {
+  toastEl.textContent = text;
+  toastEl.className = `toast show ${kind}`;
+  clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => toastEl.classList.remove('show'), 2800);
+}
+
+function starsHtml(k: number, max = 3): string {
+  return Array.from({ length: max }, (_, i) => `<span class="star ${i < k ? 'on' : ''}">★</span>`).join('');
+}
+
+function levelKey(n: number, index: number) {
+  return `${n}:${index}`;
+}
+
+function levelLabel(index: number) {
+  const w = Math.floor(index / LEVELS_PER_WORLD);
+  return `${WORLDS[w].name} · level ${index + 1}`;
+}
+
+function solvedInWorld(n: number, w: number): number {
+  let k = 0;
+  for (let i = w * LEVELS_PER_WORLD; i < (w + 1) * LEVELS_PER_WORLD; i++) if (progress.levels[levelKey(n, i)]) k++;
+  return k;
+}
+
+/** A world opens once half of the previous world is solved. */
+function worldOpen(n: number, w: number): boolean {
+  return w === 0 || solvedInWorld(n, w - 1) >= LEVELS_PER_WORLD / 2;
+}
+
+function show(screen: 'home' | 'game') {
+  homeEl.hidden = screen !== 'home';
+  gameEl.hidden = screen !== 'game';
+  if (screen === 'home') renderHome();
+  window.scrollTo(0, 0);
+}
+
+// ---------- Home ----------
+
+function renderHome() {
+  const n = settings.size;
+  const pts = totalPoints();
+  const t = titleFor(pts);
+  $('player-title').textContent = t.title.name;
+  $('player-points').textContent = t.next
+    ? `${pts} punten · nog ${t.next.min - pts} tot ${t.next.name}`
+    : `${pts} punten · hoogste titel!`;
+  const fill = t.next ? (pts - t.title.min) / (t.next.min - t.title.min) : 1;
+  $('player-bar').style.width = `${Math.round(fill * 100)}%`;
+  const solved = Object.keys(progress.levels).filter((k) => k.startsWith(`${n}:`)).length;
+  $('home-sub').textContent = `${n}×${n} · ${solved} van ${pack?.length ?? 100} levels opgelost`;
+  $('btn-continue').textContent = game && !game.solved ? 'Verder spelen' : 'Volgende level';
+
+  const worlds = $('worlds');
+  worlds.replaceChildren();
+  if (!pack) {
+    worlds.innerHTML = `<div class="card"><p>Voor ${n}×${n} zijn er nog geen levels. Speel <strong>Vrij spel</strong>, of kies 10×10 in de instellingen.</p></div>`;
+    return;
+  }
+  WORLDS.forEach((w, wi) => {
+    const open = worldOpen(n, wi);
+    const card = document.createElement('div');
+    card.className = `world card ${open ? '' : 'locked'}`;
+    const stars = Array.from({ length: LEVELS_PER_WORLD }, (_, k) => progress.levels[levelKey(n, wi * LEVELS_PER_WORLD + k)]?.stars ?? 0)
+      .reduce((a, b) => a + b, 0);
+    card.innerHTML = `
+      <div class="world-head">
+        <div><h3>Wereld ${wi + 1}: ${w.name}</h3><p>${open ? w.intro : `🔒 Los ${LEVELS_PER_WORLD / 2} levels op in ${WORLDS[wi - 1]?.name} om deze wereld te openen.`}</p></div>
+        <div class="world-stars">★ ${stars}/${LEVELS_PER_WORLD * 3}</div>
+      </div>`;
+    const grid = document.createElement('div');
+    grid.className = 'level-grid';
+    for (let k = 0; k < LEVELS_PER_WORLD; k++) {
+      const index = wi * LEVELS_PER_WORLD + k;
+      const res = progress.levels[levelKey(n, index)];
+      const b = document.createElement('button');
+      const current = game && !game.solved && game.mode.kind === 'level' && game.n === n && game.mode.index === index;
+      b.className = `level ${res ? 'done' : ''} ${current ? 'current' : ''}`;
+      b.disabled = !open || !pack;
+      b.innerHTML = `<span class="num">${index + 1}</span><span class="stars">${res ? starsHtml(res.stars) : ''}</span>`;
+      b.addEventListener('click', () => startLevel(index));
+      grid.append(b);
+    }
+    card.append(grid);
+    worlds.append(card);
+  });
+}
+
+function nextLevelIndex(): number {
+  const n = settings.size;
+  const total = pack?.length ?? 0;
+  for (let i = 0; i < total; i++) {
+    if (!worldOpen(n, Math.floor(i / LEVELS_PER_WORLD))) break;
+    if (!progress.levels[levelKey(n, i)]) return i;
+  }
+  return -1;
+}
+
+$('btn-continue').addEventListener('click', () => {
+  if (game && !game.solved) { show('game'); return; }
+  const i = nextLevelIndex();
+  if (i >= 0) startLevel(i);
+  else void startFree();
+});
+$('btn-free').addEventListener('click', () => {
+  if (game && !game.solved && game.mode.kind === 'free' && game.n === settings.size) show('game');
+  else void startFree();
+});
+
+// ---------- Starting puzzles ----------
 
 const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
 
-function makePuzzle(n: number, seed: number): Promise<Puzzle> {
+function makeFree(n: number, seed: number): Promise<{ puzzle: Puzzle; tech: number }> {
   return new Promise((resolve) => {
-    worker.onmessage = (e: MessageEvent<Puzzle>) => resolve(e.data);
+    worker.onmessage = (e: MessageEvent<{ puzzle: Puzzle; tech: number }>) => resolve(e.data);
     worker.postMessage({ n, seed });
   });
 }
 
-async function startPuzzle(n: number, seed: number) {
+function confirmLeave(): boolean {
+  if (!game || game.solved || !game.marks.some((m) => m !== EMPTY)) return true;
+  return confirm('Je huidige puzzel is nog niet af. Toch een andere beginnen? (Wat je daarin hebt gezet gaat verloren.)');
+}
+
+function startLevel(index: number) {
+  if (!pack) return;
+  const n = settings.size;
+  if (game && game.mode.kind === 'level' && game.mode.index === index && game.n === n && !game.solved) { show('game'); return; }
+  if (!confirmLeave()) return;
+  const d = pack[index];
+  setGame(new Game(decodeLevel(d), { kind: 'level', n, index }, d.g));
+  show('game');
+}
+
+async function startFree() {
+  if (!confirmLeave()) return;
+  const n = settings.size;
+  const seed = (progress.freeSeed[n] ?? 0) + 1;
+  progress.freeSeed[n] = seed;
+  saveProgress();
+  closeHint();
+  game = null;
+  show('game');
+  boardEl.replaceChildren();
+  trackerEl.replaceChildren();
+  $('game-title').textContent = `Vrij spel #${seed}`;
+  $('game-sub').textContent = `${n}×${n}`;
+  $('score').textContent = '–';
   loadingEl.hidden = false;
-  boardEl.classList.add('busy');
-  const puzzle = await makePuzzle(n, seed);
+  const { puzzle, tech } = await makeFree(n, seed);
   loadingEl.hidden = true;
-  boardEl.classList.remove('busy');
-  progress.seed[n] = seed;
-  store.set('progress', progress);
-  setGame(new Game(puzzle));
+  setGame(new Game(puzzle, { kind: 'free', n, seed }, tech));
 }
 
 function setGame(g: Game) {
   game = g;
+  hint = null;
+  hintPanel.hidden = true;
   buildBoard();
   render();
-  save();
+  saveGame();
 }
 
-function save() {
-  if (game) store.set('current', game.save());
+function saveGame() {
+  if (game) save('current2', game.save());
 }
 
 // ---------- Board ----------
@@ -101,23 +232,34 @@ function buildBoard() {
       return t;
     }),
   );
+  const m = game.mode;
+  $('game-title').textContent = m.kind === 'level' ? `Level ${m.index + 1}` : `Vrij spel #${m.seed}`;
+  const world = m.kind === 'level' ? `${WORLDS[Math.floor(m.index / LEVELS_PER_WORLD)].name} · ` : '';
+  $('game-sub').textContent = `${world}${n}×${n} · ${TECH_NAMES[game.tech] ?? ''}`;
 }
 
 function render() {
   if (!game) return;
-  const auto = settings.autoCross ? game.autoCrosses() : new Set<number>();
-  const conflicts = game.conflicts();
-  const regionsWithCat = new Set(game.cats().map((i) => game!.region(i)));
-  game.marks.forEach((m, i) => {
+  const g = game;
+  const auto = settings.autoCross ? g.autoCrosses() : new Set<number>();
+  const conflicts = g.conflicts();
+  const wrong = new Set(g.wrongCats());
+  const regionsWithCat = new Set(g.cats().filter((i) => g.isSolution(i)).map((i) => g.region(i)));
+  const focus = hint ? new Set(hint.focusCells) : null;
+  const targets = hint && hint.stage >= 2 ? new Set(hint.targetCells) : null;
+  g.marks.forEach((m, i) => {
     const el = cells[i];
     const state = m === CAT ? 'cat' : m === CROSS ? 'cross' : auto.has(i) ? 'auto' : 'empty';
     if (el.dataset.state !== state) {
       el.dataset.state = state;
       el.innerHTML = state === 'cat' ? calico() : state === 'empty' ? '' : '<span class="x"></span>';
     }
-    el.classList.toggle('conflict', conflicts.has(i));
-    el.classList.toggle('given', game!.given.has(i));
+    el.classList.toggle('conflict', conflicts.has(i) || wrong.has(i));
+    el.classList.toggle('wrong', wrong.has(i));
+    el.classList.toggle('given', g.given.has(i));
     el.classList.toggle('flash', flash.has(i));
+    el.classList.toggle('dim', !!focus && !focus.has(i));
+    el.classList.toggle('target', !!targets?.has(i));
   });
   [...trackerEl.children].forEach((t, k) => {
     const found = regionsWithCat.has(k);
@@ -126,15 +268,11 @@ function render() {
       t.innerHTML = found ? calico() : '';
     }
   });
-  boardEl.classList.toggle('solved', game.solved);
-  const n = game.n;
-  const seed = game.puzzle.seed;
-  const helpText = game.helpCats ? ` · ${game.helpCats}× geholpen` : '';
-  subtitleEl.textContent = `Puzzel ${seed} · ${n}×${n}${helpText}`;
-  ($('btn-undo') as HTMLButtonElement).disabled = !game.canUndo();
-  ($('btn-redo') as HTMLButtonElement).disabled = !game.canRedo();
-  ($('btn-check') as HTMLButtonElement).disabled = game.solved;
-  ($('btn-help') as HTMLButtonElement).disabled = game.solved;
+  boardEl.classList.toggle('solved', g.solved);
+  $('score').textContent = String(g.score());
+  $<HTMLButtonElement>('btn-undo').disabled = !g.canUndo();
+  $<HTMLButtonElement>('btn-redo').disabled = !g.canRedo();
+  for (const id of ['btn-check', 'btn-hint', 'btn-help']) $<HTMLButtonElement>(id).disabled = g.solved;
 }
 
 // ---------- Input: tap cycles, drag paints crosses ----------
@@ -161,11 +299,12 @@ boardEl.addEventListener('pointermove', (e) => {
   if (i < 0) return;
   if (!down.dragging) {
     if (i === down.i) return;
-    // Start a drag: from an empty cell we paint crosses, from a cross we erase them.
+    // From an empty cell we paint crosses, from a cross we erase them.
     down.mode = down.startMark === EMPTY ? 'paint' : down.startMark === CROSS ? 'erase' : null;
     if (!down.mode) return;
     down.dragging = true;
     game.checkpoint();
+    closeHint();
     applyDrag(down.i);
   }
   applyDrag(i);
@@ -182,112 +321,279 @@ function endPointer() {
   if (!down || !game) return;
   if (!down.dragging) {
     game.checkpoint();
-    game.cycle(down.i);
+    const result = game.cycle(down.i);
+    closeHint();
     flash.clear();
+    if (result === 'newWrong') {
+      toast(`Deze kat staat fout. −${Math.round(game.base() * COST.wrongCat)} punten`, 'bad');
+    } else if (result === 'wrong') {
+      toast('Deze kat staat fout.', 'bad');
+    }
     render();
   }
   down = null;
-  save();
+  saveGame();
   if (game.solved) celebrate();
 }
 
 boardEl.addEventListener('pointerup', endPointer);
 boardEl.addEventListener('pointercancel', () => { down = null; render(); });
 
-// ---------- Buttons ----------
+// ---------- Hints: Waar? → Waarom? → Doe maar ----------
 
-function toast(text: string) {
-  toastEl.textContent = text;
-  toastEl.classList.add('show');
-  clearTimeout((toast as unknown as { t?: number }).t);
-  (toast as unknown as { t?: number }).t = window.setTimeout(() => toastEl.classList.remove('show'), 2600);
+interface HintState {
+  /** 1 = "where" shown, 2 = "why" shown */
+  stage: 1 | 2;
+  step: Step | null;
+  /** Fix-up hints (a wrong cat, or a cross where a cat belongs). */
+  fix: number[] | null;
+  focusCells: number[];
+  targetCells: number[];
+  whyText: string;
+}
+let hint: HintState | null = null;
+
+function charge(fraction: number) {
+  if (!game || game.solved) return;
+  game.hintCost = Math.round((game.hintCost + fraction) * 100) / 100;
 }
 
-$('btn-undo').addEventListener('click', () => { game?.undo(); render(); save(); });
-$('btn-redo').addEventListener('click', () => { game?.redo(); render(); save(); });
+function closeHint() {
+  hint = null;
+  hintPanel.hidden = true;
+  if (game) render();
+}
+
+function showHintPanel(text: string, canWhy: boolean, doLabel: string) {
+  $('hint-text').textContent = text;
+  $('hint-why').hidden = !canWhy;
+  $('hint-do').innerHTML = doLabel;
+  hintPanel.hidden = false;
+}
+
+$('btn-hint').addEventListener('click', () => {
+  if (!game || game.solved) return;
+  const g = game;
+  const wrongCats = g.wrongCats();
+  if (wrongCats.length) {
+    hint = { stage: 2, step: null, fix: wrongCats, focusCells: wrongCats, targetCells: wrongCats, whyText: '' };
+    showHintPanel(
+      wrongCats.length === 1 ? 'De rode kat staat op een foute plek. Haal hem eerst weg.' : 'De rode katten staan op een foute plek. Haal ze eerst weg.',
+      false, 'Haal weg',
+    );
+    render();
+    return;
+  }
+  const wrongX = g.wrongCrosses();
+  if (wrongX.length) {
+    charge(COST.where);
+    hint = { stage: 2, step: null, fix: wrongX, focusCells: wrongX, targetCells: wrongX, whyText: '' };
+    showHintPanel('Hier staat een kruisje op een plek waar wél een kat hoort. Daardoor klopt de rest niet meer.', false, 'Haal weg');
+    render();
+    saveGame();
+    return;
+  }
+  const step = g.nextStep(settings.autoCross);
+  if (!step) { toast('Geen hint gevonden. Probeer Kat plaatsen.'); return; }
+  charge(COST.where);
+  const focusCells = [...new Set(step.focus.flatMap((u) => u.cells))];
+  const targetCells = step.place >= 0 ? [step.place] : step.cross;
+  const names = step.focus.map((u) => g.solver.unitName(u));
+  const where = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} en ${names[names.length - 1]}`;
+  hint = { stage: 1, step, fix: null, focusCells, targetCells, whyText: step.text };
+  showHintPanel(`Kijk eens goed naar ${where}.`, true, `Doe maar <em>−${COST.doIt * 100}%</em>`);
+  render();
+  saveGame();
+});
+
+$('hint-why').addEventListener('click', () => {
+  if (!hint || !game) return;
+  if (hint.stage < 2) charge(COST.why);
+  hint.stage = 2;
+  showHintPanel(hint.whyText, false, `Doe maar <em>−${COST.doIt * 100}%</em>`);
+  render();
+  saveGame();
+});
+
+$('hint-do').addEventListener('click', () => {
+  if (!hint || !game) return;
+  const g = game;
+  if (hint.fix) {
+    g.checkpoint();
+    for (const i of hint.fix) g.marks[i] = EMPTY;
+  } else if (hint.step) {
+    charge(COST.doIt);
+    g.applyStep(hint.step);
+    flash = new Set(hint.targetCells);
+    setTimeout(() => { flash.clear(); render(); }, 1200);
+  }
+  closeHint();
+  saveGame();
+  if (g.solved) celebrate();
+});
+
+$('hint-close').addEventListener('click', closeHint);
+
+// ---------- Buttons ----------
+
+$('btn-undo').addEventListener('click', () => { closeHint(); game?.undo(); render(); saveGame(); });
+$('btn-redo').addEventListener('click', () => { closeHint(); game?.redo(); render(); saveGame(); });
 
 $('btn-check').addEventListener('click', () => {
   if (!game) return;
-  const wrong = game.wrongCats();
-  flash = new Set(wrong);
+  const wrongX = game.wrongCrosses();
+  const wrongCats = game.wrongCats();
+  flash = new Set([...wrongX, ...wrongCats]);
   render();
-  if (wrong.length) toast(wrong.length === 1 ? 'Eén kat staat niet goed.' : `${wrong.length} katten staan niet goed.`);
-  else toast(game.cats().length ? 'Alle katten staan goed. Ga zo door!' : 'Nog geen katten om te controleren.');
+  if (wrongX.length) toast(wrongX.length === 1 ? 'Eén kruisje staat op de plek van een kat.' : `${wrongX.length} kruisjes staan op de plek van een kat.`);
+  else if (wrongCats.length) toast('Haal de rode kat weg, die staat fout.');
+  else toast('Alles wat je hebt gezet klopt. Ga zo door!');
   setTimeout(() => { flash.clear(); render(); }, 2400);
 });
 
 $('btn-help').addEventListener('click', () => {
   if (!game) return;
+  closeHint();
   const i = game.placeHelpCat();
   if (i < 0) return;
+  toast(`Kat geplaatst. −${Math.round(game.base() * COST.cat)} punten`);
   flash = new Set([i]);
   render();
-  save();
+  saveGame();
   setTimeout(() => { flash.clear(); render(); }, 1200);
   if (game.solved) celebrate();
 });
 
-$('btn-new').addEventListener('click', () => {
-  if (game && !game.solved && game.marks.some((m) => m !== EMPTY) && !confirm('Deze puzzel overslaan en een nieuwe beginnen?')) return;
-  nextPuzzle();
-});
+$('btn-home').addEventListener('click', () => { closeHint(); saveGame(); show('home'); });
 
-function nextPuzzle() {
-  const n = settings.size;
-  void startPuzzle(n, (progress.seed[n] ?? 0) + 1);
+// ---------- Solved ----------
+
+function nextAfter(index: number): number {
+  const i = index + 1;
+  if (!pack || i >= pack.length) return -1;
+  return worldOpen(settings.size, Math.floor(i / LEVELS_PER_WORLD)) ? i : -1;
 }
 
 function celebrate() {
   if (!game) return;
-  const key = `${game.n}:${game.puzzle.seed}`;
-  const firstTime = !(key in progress.solved);
-  if (firstTime) progress.solved[key] = game.helpCats;
-  store.set('progress', progress);
-  const total = Object.keys(progress.solved).length;
-  const help = game.helpCats ? ` met ${game.helpCats} geholpen kat${game.helpCats > 1 ? 'ten' : ''}` : ' helemaal zelf';
-  $('win-text').textContent = `Puzzel ${game.puzzle.seed} opgelost${help}. Totaal ${total} puzzel${total > 1 ? 's' : ''} opgelost.`;
-  setTimeout(() => ($('dlg-win') as HTMLDialogElement).showModal(), 700);
+  const g = game;
+  closeHint();
+  const before = titleFor(totalPoints()).index;
+  const score = g.score();
+  const stars = g.stars();
+  let label: string;
+  let extra = '';
+  if (g.mode.kind === 'level') {
+    const key = levelKey(g.n, g.mode.index);
+    const prev = progress.levels[key];
+    if (prev && score > prev.best) extra = ` Nieuw record (was ${prev.best}).`;
+    else if (prev) extra = ` Je record blijft ${prev.best}.`;
+    progress.levels[key] = { best: Math.max(prev?.best ?? 0, score), stars: Math.max(prev?.stars ?? 0, stars) };
+    label = levelLabel(g.mode.index);
+  } else {
+    progress.freePoints += score;
+    progress.freeSolved++;
+    label = `Vrij spel #${g.mode.seed}`;
+  }
+  const rank = addTopScore({ score, label: `${label} (${g.n}×${g.n})`, stars, date: new Date().toISOString().slice(0, 10) });
+  saveProgress();
+  const after = titleFor(totalPoints());
+  const parts = [`+${score} van de ${basePoints(g.n, g.tech)} punten.${extra}`];
+  if (rank === 0 && progress.top.length > 1) parts.push('Je beste score ooit!');
+  else if (rank > 0 && rank < 10) parts.push(`Nummer ${rank + 1} in je beste scores.`);
+  if (after.index > before) parts.push(`Je bent nu ${after.title.name}! 🎉`);
+  $('win-text').textContent = parts.join(' ');
+  $('win-stars').innerHTML = starsHtml(stars);
+  const nextIsLevel = g.mode.kind === 'level' && nextAfter(g.mode.index) >= 0;
+  $('win-next').textContent = g.mode.kind === 'free' ? 'Nieuwe puzzel' : nextIsLevel ? 'Volgende level' : 'Naar levels';
+  setTimeout(() => $<HTMLDialogElement>('dlg-win').showModal(), 700);
 }
 
-const winDlg = $('dlg-win') as HTMLDialogElement;
+const winDlg = $<HTMLDialogElement>('dlg-win');
 winDlg.querySelector('.win-cat')!.innerHTML = calico();
-winDlg.addEventListener('close', () => { if (winDlg.returnValue === 'next') nextPuzzle(); });
-
-// Settings
-const autoEl = $('set-auto') as HTMLInputElement;
-const sizeEl = $('set-size') as HTMLSelectElement;
-const settingsDlg = $('dlg-settings') as HTMLDialogElement;
-$('btn-settings').addEventListener('click', () => {
-  autoEl.checked = settings.autoCross;
-  sizeEl.value = String(settings.size);
-  settingsDlg.showModal();
+winDlg.addEventListener('close', () => {
+  if (winDlg.returnValue !== 'next' || !game) return;
+  if (game.mode.kind === 'free') void startFree();
+  else {
+    const i = nextAfter(game.mode.index);
+    if (i >= 0) startLevel(i);
+    else show('home');
+  }
 });
-autoEl.addEventListener('change', () => { settings.autoCross = autoEl.checked; store.set('settings', settings); render(); });
-sizeEl.addEventListener('change', () => {
+
+// ---------- Dialogs ----------
+
+document.querySelectorAll<HTMLElement>('[data-open]').forEach((b) =>
+  b.addEventListener('click', () => {
+    if (b.dataset.open === 'dlg-scores') renderScores();
+    $<HTMLDialogElement>(b.dataset.open!).showModal();
+  }),
+);
+
+function renderScores() {
+  $('score-list').innerHTML = progress.top.length
+    ? progress.top.map((e) => `<li><strong>${e.score}</strong><span class="what">${e.label}</span><span class="stars">${starsHtml(e.stars)}</span></li>`).join('')
+    : '<li class="empty">Nog geen scores. Los je eerste puzzel op!</li>';
+}
+
+const autoEl = $<HTMLInputElement>('set-auto');
+const sizeEl = $<HTMLSelectElement>('set-size');
+const settingsDlg = $<HTMLDialogElement>('dlg-settings');
+document.querySelectorAll('.btn-settings').forEach((b) =>
+  b.addEventListener('click', () => {
+    autoEl.checked = settings.autoCross;
+    sizeEl.value = String(settings.size);
+    settingsDlg.showModal();
+  }),
+);
+autoEl.addEventListener('change', () => { settings.autoCross = autoEl.checked; saveSettings(); render(); });
+sizeEl.addEventListener('change', async () => {
   settings.size = Number(sizeEl.value);
-  store.set('settings', settings);
-});
-settingsDlg.addEventListener('close', () => {
-  if (game && game.n !== settings.size && (game.solved || !game.marks.some((m) => m !== EMPTY))) nextPuzzle();
-  else if (game && game.n !== settings.size) toast(`De volgende nieuwe puzzel wordt ${settings.size}×${settings.size}.`);
+  saveSettings();
+  pack = await loadPack(settings.size);
+  renderHome();
 });
 
-const rulesDlg = $('dlg-rules') as HTMLDialogElement;
-$('btn-rules').addEventListener('click', () => rulesDlg.showModal());
-document.querySelector('.ico-cat')!.innerHTML = calico();
+/** After an update: show what's new once. Returns true for a brand-new player. */
+function showNews(): boolean {
+  const seen = load<string | null>('seenVersion', null);
+  const isNewPlayer = !seen && !load('current', null) && !load('current2', null);
+  save('seenVersion', APP_VERSION);
+  if (seen === APP_VERSION || isNewPlayer) return isNewPlayer;
+  const entry = CHANGELOG.find((c) => c.version === APP_VERSION);
+  if (!entry) return false;
+  $('news-title').textContent = `Nieuw in versie ${entry.version}`;
+  $('news-list').innerHTML = entry.items.map((i) => `<li>${i}</li>`).join('');
+  const dlg = $<HTMLDialogElement>('dlg-news');
+  dlg.querySelector('.win-cat')!.innerHTML = calico();
+  dlg.showModal();
+  return false;
+}
+
+watchForUpdates(() => { $('update-banner').hidden = false; });
+$('btn-update').addEventListener('click', () => {
+  saveGame();
+  void applyUpdate();
+});
 
 // ---------- Start ----------
 
-const saved = store.get<SavedGame | null>('current', null);
-if (saved?.puzzle && saved.puzzle.n === saved.puzzle.regions?.length) {
-  setGame(new Game(saved.puzzle, saved));
-} else {
-  if (!store.get('seenRules', false)) {
-    rulesDlg.showModal();
-    store.set('seenRules', true);
+document.querySelector('.ico-cat')!.innerHTML = calico();
+document.querySelector('.player-cat')!.innerHTML = calico();
+$('version').textContent = `Versie ${APP_VERSION} · open source (MIT) · zonder reclame`;
+
+async function init() {
+  pack = await loadPack(settings.size);
+  const saved = load<SavedGame | null>('current2', null);
+  if (saved?.v === 2 && saved.puzzle?.regions?.length === saved.puzzle.n) {
+    game = new Game(saved.puzzle, saved.mode as Mode, saved.tech, saved);
+    buildBoard();
+    render();
   }
-  void startPuzzle(settings.size, (progress.seed[settings.size] ?? 0) + 1);
+  show('home');
+  if (showNews()) $<HTMLDialogElement>('dlg-rules').showModal();
 }
+void init();
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));

@@ -1,7 +1,7 @@
 {
   "name": "kattenkwartier",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -11,6 +11,8 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@types/node": "^22.20.5",
+    "tsx": "^4.23.15",
     "typescript": "5.9.3",
     "vite": "6.4.5",
     "vitest": "3.2.7"

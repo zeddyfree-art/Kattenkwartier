@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { generate, solve } from '../src/puzzle';
-import { CAT, CROSS, EMPTY, Game } from '../src/game';
+import { readdirSync, readFileSync } from 'node:fs';
+import { CAT, CROSS, EMPTY, Game, type Mode } from '../src/game';
+import { LEVELS_PER_WORLD, WORLDS, decodeLevel, type LevelData } from '../src/levels';
+import { NO, Solver, TECH, grade } from '../src/solver';
 
 function connected(regions: number[][], id: number): boolean {
   const n = regions.length;
@@ -42,9 +45,12 @@ describe('generator', () => {
   });
 });
 
+const mode: Mode = { kind: 'free', n: 10, seed: 1 };
+const newGame = (seed: number) => new Game(generate(10, seed), mode, 3);
+
 describe('game', () => {
   it('cycles empty → cross → cat → empty and undoes', () => {
-    const g = new Game(generate(10, 1));
+    const g = newGame(1);
     g.checkpoint(); g.cycle(0);
     expect(g.marks[0]).toBe(CROSS);
     g.checkpoint(); g.cycle(0);
@@ -57,27 +63,103 @@ describe('game', () => {
     expect(g.marks[0]).toBe(EMPTY);
   });
 
-  it('flags touching cats as conflicts', () => {
-    const g = new Game(generate(10, 1));
-    g.set(0, CAT);
-    g.set(11, CAT);
-    expect([...g.conflicts()].sort()).toEqual([0, 11]);
+  it('flags a wrong cat immediately and charges it once', () => {
+    const g = newGame(1);
+    const wrongCell = [...Array(100).keys()].find((i) => !g.isSolution(i))!;
+    const full = g.score();
+    expect(g.set(wrongCell, CAT)).toBe('newWrong');
+    expect(g.wrongCats()).toEqual([wrongCell]);
+    expect(g.score()).toBeLessThan(full);
+    const after = g.score();
+    g.set(wrongCell, EMPTY);
+    expect(g.set(wrongCell, CAT)).toBe('wrong');
+    expect(g.score()).toBe(after);
+    expect(g.stars()).toBe(2);
   });
 
-  it('auto-crosses row, column, region and neighbours of a cat', () => {
-    const p = generate(10, 1);
-    const g = new Game(p);
-    g.set(55, CAT);
+  it('only auto-crosses around correct cats', () => {
+    const g = newGame(1);
+    const right = g.puzzle.solution[5] + 50;
+    g.set(right, CAT);
     const auto = g.autoCrosses();
-    expect(auto.has(50)).toBe(true); // same row
-    expect(auto.has(5)).toBe(true); // same column
-    expect(auto.has(44)).toBe(true); // diagonal neighbour
+    expect(auto.has(50 + ((g.puzzle.solution[5] + 5) % 10))).toBe(true); // same row
+    expect(auto.has(right)).toBe(false);
   });
 
-  it('is solved after the helper places every cat', () => {
-    const g = new Game(generate(10, 2));
+  it('is solved after the helper places every cat, with one star', () => {
+    const g = newGame(2);
     for (let k = 0; k < 10; k++) g.placeHelpCat();
     expect(g.solved).toBe(true);
-    expect(g.helpCats).toBe(10);
+    expect(g.stars()).toBe(1);
+    expect(g.score()).toBe(Math.round(g.base() * 0.1));
+  });
+
+  it('can be solved with hint steps only, without ever crossing a cat cell', () => {
+    for (const seed of [3, 4, 5]) {
+      const g = newGame(seed);
+      for (let k = 0; k < 300 && !g.solved; k++) {
+        const step = g.nextStep(true)!;
+        expect(step).not.toBeNull();
+        for (const i of step.cross) expect(g.isSolution(i)).toBe(false);
+        if (step.place >= 0) expect(g.isSolution(step.place)).toBe(true);
+        g.applyStep(step);
+      }
+      expect(g.solved).toBe(true);
+    }
+  });
+});
+
+describe('solver', () => {
+  it('solves generated puzzles without guessing and finds the real solution', () => {
+    for (let seed = 1; seed <= 10; seed++) {
+      const p = generate(10, seed);
+      const g = grade(p.regions);
+      expect(g.solved).toBe(true);
+    }
+  });
+
+  it('every deduction step is correct', () => {
+    const p = generate(10, 7);
+    const s = new Solver(p.regions);
+    const state = new Uint8Array(100);
+    while (!s.done(state)) {
+      const step = s.next(state)!;
+      for (const i of step.cross) expect(p.solution[Math.floor(i / 10)]).not.toBe(i % 10);
+      if (step.place >= 0) expect(p.solution[Math.floor(step.place / 10)]).toBe(step.place % 10);
+      if (step.place >= 0) s.place(state, step.place);
+      for (const i of step.cross) state[i] = NO;
+      expect(step.text.length).toBeGreaterThan(10);
+    }
+  });
+});
+
+describe('level packs', () => {
+  const dir = new URL('../src/levels/', import.meta.url);
+  const files = readdirSync(dir).filter((f) => f.endsWith('.json'));
+
+  it('has a 10×10 pack', () => {
+    expect(files).toContain('10.json');
+  });
+
+  for (const f of files) {
+    it(`${f}: 5 worlds of 20 unique, logically solvable levels in the right difficulty`, () => {
+      const pack = JSON.parse(readFileSync(new URL(f, dir), 'utf8')) as LevelData[];
+      expect(pack).toHaveLength(WORLDS.length * LEVELS_PER_WORLD);
+      expect(new Set(pack.map((d) => d.r)).size).toBe(pack.length);
+      pack.forEach((d, i) => {
+        const w = WORLDS[Math.floor(i / LEVELS_PER_WORLD)];
+        const p = decodeLevel(d);
+        expect(solve(p.n, p.regions, 2)).toEqual([p.solution]);
+        const g = grade(p.regions);
+        expect(g.solved).toBe(true);
+        expect(g.level).toBe(d.g);
+        expect(d.g).toBeGreaterThanOrEqual(w.minTech);
+        expect(d.g).toBeLessThanOrEqual(w.maxTech);
+      });
+    });
+  }
+
+  it('worlds get harder', () => {
+    expect(WORLDS.map((w) => w.minTech)).toEqual([TECH.single, TECH.blocker, TECH.pair, TECH.group, TECH.whatIf]);
   });
 });
