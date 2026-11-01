@@ -12,7 +12,12 @@ Een open-source, reclamevrije kattenlogica-puzzel voor iPad en telefoon.
 
 Het volledige plan staat in [`docs/VOORSTEL.md`](docs/VOORSTEL.md).
 
-**Status:** versie 0.2: 100 levels in 5 werelden per bordmaat, logische oplosser met moeilijkheidsgraad, hints in stapjes (Waar? → Waarom? → Doe maar), score, sterren, high scores, kattentitels en een melding bij updates.
+**Status:** versie 0.3:
+- 200 levels (10×10) in 10 werelden die steeds moeilijker worden. Een groter bord (tot 14×14) kun je kiezen voor Vrij spel.
+- Een logische oplosser die de moeilijkheid bepaalt en hints in stapjes geeft (Waar? → Waarom? → Doe maar).
+- Score, sterren, high scores en kattentitels.
+- Back-up als bestand of via Google Drive (zie [`docs/GOOGLE-DRIVE.md`](docs/GOOGLE-DRIVE.md)).
+- Een melding zodra er een update is.
 
 ## Spelen
 
@@ -33,7 +38,8 @@ Elke push naar `main` publiceert automatisch via GitHub Actions. Verhoog bij een
 
 - `src/puzzle.ts`: generator (elke puzzel heeft precies één oplossing)
 - `src/solver.ts`: menselijke oplosser: vindt de makkelijkste volgende stap, legt die uit en bepaalt de moeilijkheid
-- `src/levels.ts`, `src/levels/*.json`: de werelden en vooraf gemaakte levels (`npx tsx scripts/make-levels.ts 10`)
+- `src/levels.ts`, `src/levels/10.json`: de werelden en de vooraf gemaakte levels (`scripts/make-pool.ts` en daarna `scripts/make-levels.ts`)
+- `src/backup.ts`, `src/drive.ts`: back-up als bestand en synchronisatie met Google Drive
 - `src/update.ts`: updatemelding en "wat is nieuw"
 - `src/game.ts`: speltoestand, score, auto-kruisjes, foute katten, ongedaan maken
 - `src/store.ts`: voortgang, high scores en kattentitels (lokaal op het apparaat)

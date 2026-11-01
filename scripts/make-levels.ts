@@ -1,34 +1,38 @@
 /**
- * Pre-generates the level packs: 5 worlds × 20 levels per board size.
- * Each world needs a harder technique than the one before; within a world,
- * levels are ordered by total effort.
+ * Step 2 of making levels: pick 10 worlds × 20 levels (10×10) from the graded pools.
  *
- *   npx tsx scripts/make-levels.ts 10      # writes src/levels/10.json
+ *   npx tsx scripts/make-pool.ts 100000 1500 pool/p0.json   # (several in parallel)
+ *   npx tsx scripts/make-levels.ts pool/*.json               # writes src/levels/10.json
+ *
+ * Worlds 1–4 each need one new technique. Worlds 5–10 all need "what if" and are
+ * split by total effort, so they keep getting harder. Within a world levels go from
+ * easier to harder.
  */
-import { writeFileSync } from 'node:fs';
-import { generate } from '../src/puzzle';
-import { grade } from '../src/solver';
-import { WORLDS, encodeLevel, type LevelData } from '../src/levels';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { LEVELS_PER_WORLD, WORLDS, type LevelData } from '../src/levels';
 
-const n = Number(process.argv[2] ?? 10);
-const PER_WORLD = 20;
-const POOL = 32; // collect a few extra per world, then spread them by effort
-const buckets: LevelData[][] = WORLDS.map(() => []);
+const pool = process.argv.slice(2).flatMap((f) => JSON.parse(readFileSync(f, 'utf8')) as LevelData[]);
+const unique = [...new Map(pool.map((d) => [d.r, d])).values()];
+const pick = (list: LevelData[], k: number) => {
+  list.sort((x, y) => x.e - y.e);
+  return Array.from({ length: k }, (_, i) => list[Math.round((i * (list.length - 1)) / (k - 1))]);
+};
 
-for (let seed = 100_000; buckets.some((b) => b.length < POOL); seed++) {
-  const p = generate(n, seed);
-  const g = grade(p.regions);
-  if (!g.solved) continue;
-  const w = WORLDS.findIndex((x) => g.level >= x.minTech && g.level <= x.maxTech);
-  if (w < 0 || buckets[w].length >= POOL) continue;
-  buckets[w].push(encodeLevel(p, g));
-  if (seed % 20 === 0) console.error(n, seed, buckets.map((b) => b.length).join(' '));
-}
-
-const out = buckets.flatMap((b) => {
-  b.sort((x, y) => x.e - y.e);
-  // Evenly spaced picks from easiest to hardest.
-  return Array.from({ length: PER_WORLD }, (_, k) => b[Math.round((k * (b.length - 1)) / (PER_WORLD - 1))]);
+const out: LevelData[] = [];
+// Worlds with their own technique.
+WORLDS.forEach((w) => {
+  if (w.minTech === 6) return;
+  const list = unique.filter((d) => d.g >= w.minTech && d.g <= w.maxTech);
+  if (list.length < LEVELS_PER_WORLD) throw new Error(`te weinig puzzels voor ${w.name}: ${list.length}`);
+  out.push(...pick(list, LEVELS_PER_WORLD));
 });
-writeFileSync(new URL(`../src/levels/${n}.json`, import.meta.url), JSON.stringify(out) + '\n');
-console.error(`wrote ${out.length} levels for ${n}×${n}`);
+// "What if" worlds: split the hardest puzzles into equal slices by effort.
+const hardWorlds = WORLDS.filter((w) => w.minTech === 6).length;
+const hard = unique.filter((d) => d.g === 6).sort((x, y) => x.e - y.e);
+if (hard.length < hardWorlds * LEVELS_PER_WORLD) throw new Error(`te weinig zware puzzels: ${hard.length}`);
+for (let w = 0; w < hardWorlds; w++) {
+  const slice = hard.slice(Math.floor((w * hard.length) / hardWorlds), Math.floor(((w + 1) * hard.length) / hardWorlds));
+  out.push(...pick(slice, LEVELS_PER_WORLD));
+}
+writeFileSync(new URL('../src/levels/10.json', import.meta.url), JSON.stringify(out) + '\n');
+console.error(`wrote ${out.length} levels; tier-6 pool ${hard.length}`);

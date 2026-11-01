@@ -1,7 +1,9 @@
 import './style.css';
 import { calico } from './cat';
 import { CAT, COST, CROSS, EMPTY, Game, basePoints, type Mode, type SavedGame } from './game';
-import { LEVELS_PER_WORLD, WORLDS, decodeLevel, type LevelData } from './levels';
+import { exportFile, readFile, applyBackup } from './backup';
+import { driveAvailable, driveLinked, hasToken, lastSync, syncDrive, unlinkDrive } from './drive';
+import { LEVEL_SIZE, LEVELS_PER_WORLD, WORLDS, decodeLevel, type LevelData } from './levels';
 import { loadPack } from './packs';
 import type { Puzzle } from './puzzle';
 import { TECH_NAMES, type Step } from './solver';
@@ -74,7 +76,7 @@ function show(screen: 'home' | 'game') {
 // ---------- Home ----------
 
 function renderHome() {
-  const n = settings.size;
+  const n = LEVEL_SIZE;
   const pts = totalPoints();
   const t = titleFor(pts);
   $('player-title').textContent = t.title.name;
@@ -85,12 +87,13 @@ function renderHome() {
   $('player-bar').style.width = `${Math.round(fill * 100)}%`;
   const solved = Object.keys(progress.levels).filter((k) => k.startsWith(`${n}:`)).length;
   $('home-sub').textContent = `${n}×${n} · ${solved} van ${pack?.length ?? 100} levels opgelost`;
-  $('btn-continue').textContent = game && !game.solved ? 'Verder spelen' : 'Volgende level';
+  $('btn-continue').textContent = game && !game.solved ? 'Verder spelen' : nextLevelIndex() >= 0 ? 'Volgende level' : 'Nieuwe puzzel';
+  $('btn-free').textContent = settings.size === LEVEL_SIZE ? 'Vrij spel' : `Vrij spel ${settings.size}×${settings.size}`;
 
   const worlds = $('worlds');
   worlds.replaceChildren();
   if (!pack) {
-    worlds.innerHTML = `<div class="card"><p>Voor ${n}×${n} zijn er nog geen levels. Speel <strong>Vrij spel</strong>, of kies 10×10 in de instellingen.</p></div>`;
+    worlds.innerHTML = '<div class="card"><p>De levels konden niet geladen worden.</p></div>';
     return;
   }
   WORLDS.forEach((w, wi) => {
@@ -123,7 +126,7 @@ function renderHome() {
 }
 
 function nextLevelIndex(): number {
-  const n = settings.size;
+  const n = LEVEL_SIZE;
   const total = pack?.length ?? 0;
   for (let i = 0; i < total; i++) {
     if (!worldOpen(n, Math.floor(i / LEVELS_PER_WORLD))) break;
@@ -161,7 +164,7 @@ function confirmLeave(): boolean {
 
 function startLevel(index: number) {
   if (!pack) return;
-  const n = settings.size;
+  const n = LEVEL_SIZE;
   if (game && game.mode.kind === 'level' && game.mode.index === index && game.n === n && !game.solved) { show('game'); return; }
   if (!confirmLeave()) return;
   const d = pack[index];
@@ -199,7 +202,9 @@ function setGame(g: Game) {
 }
 
 function saveGame() {
-  if (game) save('current2', game.save());
+  if (!game) return;
+  save('current2', game.save());
+  save('lastPlayed', new Date().toISOString());
 }
 
 // ---------- Board ----------
@@ -471,7 +476,7 @@ $('btn-home').addEventListener('click', () => { closeHint(); saveGame(); show('h
 function nextAfter(index: number): number {
   const i = index + 1;
   if (!pack || i >= pack.length) return -1;
-  return worldOpen(settings.size, Math.floor(i / LEVELS_PER_WORLD)) ? i : -1;
+  return worldOpen(LEVEL_SIZE, Math.floor(i / LEVELS_PER_WORLD)) ? i : -1;
 }
 
 function celebrate() {
@@ -497,6 +502,7 @@ function celebrate() {
   }
   const rank = addTopScore({ score, label: `${label} (${g.n}×${g.n})`, stars, date: new Date().toISOString().slice(0, 10) });
   saveProgress();
+  void syncDrive(false).catch(() => {}); // quietly, only if Drive was used in the last hour
   const after = titleFor(totalPoints());
   const parts = [`+${score} van de ${basePoints(g.n, g.tech)} punten.${extra}`];
   if (rank === 0 && progress.top.length > 1) parts.push('Je beste score ooit!');
@@ -543,15 +549,74 @@ document.querySelectorAll('.btn-settings').forEach((b) =>
   b.addEventListener('click', () => {
     autoEl.checked = settings.autoCross;
     sizeEl.value = String(settings.size);
+    renderBackup();
     settingsDlg.showModal();
   }),
 );
 autoEl.addEventListener('change', () => { settings.autoCross = autoEl.checked; saveSettings(); render(); });
-sizeEl.addEventListener('change', async () => {
+sizeEl.addEventListener('change', () => {
   settings.size = Number(sizeEl.value);
   saveSettings();
-  pack = await loadPack(settings.size);
   renderHome();
+});
+
+// ---------- Back-up ----------
+
+function renderBackup() {
+  const row = $('drive-row');
+  row.hidden = !driveAvailable();
+  const when = lastSync();
+  $('drive-status').textContent = !driveLinked()
+    ? 'Bewaar je voortgang in je eigen Google Drive en zet hem over naar een ander apparaat.'
+    : when ? `Gekoppeld. Laatst gesynchroniseerd: ${new Date(when).toLocaleString('nl-NL', { dateStyle: 'medium', timeStyle: 'short' })}.` : 'Gekoppeld.';
+  $('btn-drive').textContent = driveLinked() ? 'Nu synchroniseren' : 'Koppel Google Drive';
+  $('btn-drive-unlink').hidden = !driveLinked();
+}
+
+function afterRestore(changedCurrent: boolean) {
+  if (changedCurrent) {
+    toast('Bijgewerkt met de nieuwste puzzel van je andere apparaat.');
+    setTimeout(() => location.reload(), 900);
+  } else {
+    renderHome();
+  }
+}
+
+$('btn-drive').addEventListener('click', async () => {
+  const b = $<HTMLButtonElement>('btn-drive');
+  b.disabled = true;
+  b.textContent = 'Bezig…';
+  saveGame();
+  try {
+    const changed = await syncDrive(true);
+    toast('Gesynchroniseerd met Google Drive ✓');
+    afterRestore(changed);
+  } catch (e) {
+    toast((e as Error).message, 'bad');
+  }
+  b.disabled = false;
+  renderBackup();
+});
+$('btn-drive-unlink').addEventListener('click', () => { unlinkDrive(); renderBackup(); });
+$('btn-export').addEventListener('click', () => { saveGame(); void exportFile(); });
+const importEl = $<HTMLInputElement>('import-file');
+$('btn-import').addEventListener('click', () => importEl.click());
+importEl.addEventListener('change', async () => {
+  const f = importEl.files?.[0];
+  importEl.value = '';
+  if (!f) return;
+  try {
+    const b = await readFile(f);
+    const changed = applyBackup(b, true);
+    toast('Back-up teruggezet ✓');
+    afterRestore(changed);
+  } catch (e) {
+    toast((e as Error).message || 'Dit bestand kon niet gelezen worden.', 'bad');
+  }
+});
+// Keep Drive up to date when she leaves the app (only if signed in within the last hour).
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && hasToken()) { saveGame(); void syncDrive(false).catch(() => {}); }
 });
 
 /** After an update: show what's new once. Returns true for a brand-new player. */
@@ -583,7 +648,7 @@ document.querySelector('.player-cat')!.innerHTML = calico();
 $('version').textContent = `Versie ${APP_VERSION} · open source (MIT) · zonder reclame`;
 
 async function init() {
-  pack = await loadPack(settings.size);
+  pack = await loadPack(LEVEL_SIZE);
   const saved = load<SavedGame | null>('current2', null);
   if (saved?.v === 2 && saved.puzzle?.regions?.length === saved.puzzle.n) {
     game = new Game(saved.puzzle, saved.mode as Mode, saved.tech, saved);

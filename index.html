@@ -104,8 +104,8 @@
         </label>
         <label class="row">
           <span>
-            <strong>Bordgrootte</strong>
-            <small>Standaard 10×10. Elke maat heeft eigen levels en voortgang.</small>
+            <strong>Bordgrootte voor Vrij spel</strong>
+            <small>De levels zijn altijd 10×10. Voor Vrij spel kun je een groter bord kiezen.</small>
           </span>
           <select id="set-size">
             <option value="10">10×10</option>
@@ -115,6 +115,28 @@
             <option value="14">14×14</option>
           </select>
         </label>
+        <h3 class="section">Back-up</h3>
+        <div class="row stack" id="drive-row" hidden>
+          <span>
+            <strong>Google Drive</strong>
+            <small id="drive-status"></small>
+          </span>
+          <span class="btns">
+            <button type="button" id="btn-drive" class="primary small">Koppel Google Drive</button>
+            <button type="button" id="btn-drive-unlink" class="secondary small" hidden>Ontkoppel</button>
+          </span>
+        </div>
+        <div class="row stack">
+          <span>
+            <strong>Back-upbestand</strong>
+            <small>Bewaar je voortgang als bestand (bijv. in Bestanden of iCloud) of zet een back-up terug. Terugzetten voegt samen: je raakt niets kwijt.</small>
+          </span>
+          <span class="btns">
+            <button type="button" id="btn-export" class="secondary small">Bewaar back-up</button>
+            <button type="button" id="btn-import" class="secondary small">Zet terug</button>
+            <input type="file" id="import-file" accept="application/json,.json" hidden />
+          </span>
+        </div>
         <div class="actions"><button class="primary">Klaar</button></div>
       </form>
     </dialog>
