@@ -22,6 +22,9 @@ export function save(key: string, value: unknown) {
 export interface Settings {
   autoCross: boolean;
   size: number;
+  coat: string;
+  palette: string;
+  sound: boolean;
 }
 
 export interface LevelResult {
@@ -48,7 +51,7 @@ export interface Progress {
   top: ScoreEntry[];
 }
 
-export const settings: Settings = { autoCross: true, size: 10, ...load<Partial<Settings>>('settings', {}) };
+export const settings: Settings = { autoCross: true, size: 10, coat: 'lapjes', palette: 'pastel', sound: false, ...load<Partial<Settings>>('settings', {}) };
 export const progress: Progress = {
   levels: {}, freeSeed: {}, freePoints: 0, freeSolved: 0, top: [],
   ...load<Partial<Progress>>('progress2', {}),
@@ -83,4 +86,25 @@ export function titleFor(points: number) {
   let k = 0;
   while (k + 1 < TITLES.length && points >= TITLES[k + 1].min) k++;
   return { index: k, title: TITLES[k], next: TITLES[k + 1] ?? null };
+}
+
+/** What each title unlocks. Everything without an entry is available from the start. */
+export const UNLOCKS: { title: number; kind: 'coat' | 'palette'; id: string }[] = [
+  { title: 1, kind: 'coat', id: 'rood' },
+  { title: 2, kind: 'coat', id: 'cypers' },
+  { title: 2, kind: 'palette', id: 'herfst' },
+  { title: 3, kind: 'coat', id: 'zwartwit' },
+  { title: 4, kind: 'coat', id: 'siamees' },
+  { title: 4, kind: 'palette', id: 'oceaan' },
+  { title: 5, kind: 'coat', id: 'grijs' },
+  { title: 6, kind: 'coat', id: 'koningin' },
+];
+
+/** The title needed for an item (0 = from the start). */
+export function unlockTitle(kind: 'coat' | 'palette', id: string): number {
+  return UNLOCKS.find((u) => u.kind === kind && u.id === id)?.title ?? 0;
+}
+
+export function isUnlocked(kind: 'coat' | 'palette', id: string, points = totalPoints()): boolean {
+  return titleFor(points).index >= unlockTitle(kind, id);
 }
