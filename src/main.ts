@@ -222,9 +222,6 @@ function buildBoard() {
       el.className = 'cell';
       el.dataset.i = String(r * n + c);
       el.style.setProperty('--bg', PALETTE[reg % PALETTE.length]);
-      // Thick lines between different colours make the regions easy to read.
-      if (r > 0 && puzzle.regions[r - 1][c] !== reg) el.classList.add('bt');
-      if (c > 0 && puzzle.regions[r][c - 1] !== reg) el.classList.add('bl');
       el.setAttribute('role', 'gridcell');
       boardEl.append(el);
       cells.push(el);
@@ -280,7 +277,10 @@ function render() {
   for (const id of ['btn-check', 'btn-hint', 'btn-help']) $<HTMLButtonElement>(id).disabled = g.solved;
 }
 
-// ---------- Input: tap cycles, drag paints crosses ----------
+// ---------- Input: tap = cross / remove, double tap = cat, drag paints crosses ----------
+
+const DOUBLE_TAP_MS = 350;
+let lastTap = { i: -1, at: 0, wasEmpty: false };
 
 let down: { i: number; startMark: number; dragging: boolean; mode: 'paint' | 'erase' | null } | null = null;
 
@@ -325,8 +325,20 @@ function applyDrag(i: number) {
 function endPointer() {
   if (!down || !game) return;
   if (!down.dragging) {
-    game.checkpoint();
-    const result = game.cycle(down.i);
+    const i = down.i;
+    const now = performance.now();
+    const isDouble = lastTap.i === i && now - lastTap.at < DOUBLE_TAP_MS && lastTap.wasEmpty && game.marks[i] === CROSS;
+    let result: ReturnType<Game['set']>;
+    if (isDouble) {
+      // Second tap of a quick double tap on an empty cell: the cross becomes a cat
+      // (no extra undo step, so one "Terug" removes the cat again).
+      result = game.set(i, CAT);
+      lastTap = { i: -1, at: 0, wasEmpty: false };
+    } else {
+      lastTap = { i, at: now, wasEmpty: game.marks[i] === EMPTY };
+      game.checkpoint();
+      result = game.tap(i);
+    }
     closeHint();
     flash.clear();
     if (result === 'newWrong') {

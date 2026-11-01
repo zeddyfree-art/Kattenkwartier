@@ -12,6 +12,14 @@ export const APP_VERSION = __APP_VERSION__;
 /** Newest first. Shown once after an update. */
 export const CHANGELOG: { version: string; items: string[] }[] = [
   {
+    version: '0.3.1',
+    items: [
+      'Tik op een kruisje haalt het weg (wordt geen kat meer)',
+      'Snel dubbeltikken op een leeg vakje zet een kat',
+      'Nieuw uiterlijk: losse, afgeronde vakjes met witte ruimte ertussen',
+    ],
+  },
+  {
     version: '0.3.0',
     items: [
       '200 levels in 10 werelden, allemaal 10×10 en steeds moeilijker',
