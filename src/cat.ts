@@ -87,8 +87,11 @@ function drawCat(c: CatCoat, id: string): string {
     <circle cx="37.8" cy="49.5" r="1.8" fill="#fff"/>
     <circle cx="65.8" cy="49.5" r="1.8" fill="#fff"/>
   </g>
-  <path d="M46 64 Q50 62 54 64 Q50 69 46 64 Z" fill="#f08a9a"/>
-  <path d="M50 67 Q50 72 44 73 M50 67 Q50 72 56 73" fill="none" stroke="${c.ink}" stroke-width="2.2" stroke-linecap="round"/>
+  <ellipse cx="23" cy="66" rx="7" ry="4.5" fill="#ff8fa3" opacity=".45"/>
+  <ellipse cx="77" cy="66" rx="7" ry="4.5" fill="#ff8fa3" opacity=".45"/>
+  <path d="M46 63 Q50 61 54 63 Q50 68 46 63 Z" fill="#f08a9a"/>
+  <path d="M50 66 Q50 74 43 74 Q37 73 36 68 M50 66 Q50 74 57 74 Q63 73 64 68" fill="none" stroke="${c.ink}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M46 73.2 Q50 80 54 73.2 Q50 74.8 46 73.2 Z" fill="#f2788f"/>
   <path d="M10 60 L28 63 M10 68 L28 67 M90 60 L72 63 M90 68 L72 67" stroke="${whisker}" stroke-width="1.6" stroke-linecap="round" opacity=".6"/>
   ${c.crown ? CROWN : ''}`;
 }
@@ -152,8 +155,11 @@ function drawPanda(p: PandaLook, id: string): string {
     <circle cx="37.5" cy="50" r="2.3" fill="#fff"/>
     <circle cx="67.5" cy="50" r="2.3" fill="#fff"/>
   </g>
-  <path d="M44 66 Q50 62 56 66 Q54 71 50 72 Q46 71 44 66 Z" fill="${ink}"/>
-  <path d="M50 72 Q50 77 45 78 M50 72 Q50 77 55 78" fill="none" stroke="${ink}" stroke-width="2.2" stroke-linecap="round"/>
+  <ellipse cx="20" cy="70" rx="7" ry="4.5" fill="#ff8fa3" opacity=".5"/>
+  <ellipse cx="80" cy="70" rx="7" ry="4.5" fill="#ff8fa3" opacity=".5"/>
+  <path d="M44 65 Q50 61 56 65 Q54 70 50 71 Q46 70 44 65 Z" fill="${ink}"/>
+  <path d="M50 71 Q50 79 42 79 Q36 78 35 73 M50 71 Q50 79 58 79 Q64 78 65 73" fill="none" stroke="${ink}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M46 78.2 Q50 85 54 78.2 Q50 79.8 46 78.2 Z" fill="#f2788f"/>
   ${extra}`;
 }
 

@@ -11,6 +11,7 @@ export const APP_VERSION = __APP_VERSION__;
 
 /** Newest first. Shown once after an update. */
 export const CHANGELOG: { version: string; items: string[] }[] = [
+  { version: '0.5.2', items: ["Vrolijkere katten en panda's: een grotere glimlach en roze wangetjes"] },
   { version: '0.5.1', items: ['Dubbeltikken op de iPad zoomt niet meer in'] },
   {
     version: '0.5.0',
