@@ -394,6 +394,11 @@ function endPointer() {
 }
 
 boardEl.addEventListener('pointerup', endPointer);
+// iPad Safari zooms on a double tap unless the touch itself is cancelled.
+// (We use pointer events for the game, so nothing else needs these.)
+boardEl.addEventListener('touchend', (e) => e.preventDefault(), { passive: false });
+boardEl.addEventListener('dblclick', (e) => e.preventDefault());
+document.addEventListener('gesturestart', (e) => e.preventDefault());
 boardEl.addEventListener('pointercancel', () => { down = null; render(); });
 
 // ---------- Hints: Waar? → Waarom? → Doe maar ----------
