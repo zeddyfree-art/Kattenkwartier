@@ -16,16 +16,53 @@
     <title>Kattenkwartier</title>
   </head>
   <body>
-    <div id="app">
+    <div id="update-banner" class="update-banner" hidden>
+      <span>✨ Er is een nieuwe update!</span>
+      <button id="btn-update" class="primary small">Nu bijwerken</button>
+    </div>
+
+    <!-- Home: player title, worlds and levels -->
+    <section id="home" class="screen">
       <header class="top">
         <div class="title">
           <h1>Kattenkwartier</h1>
-          <p id="subtitle" class="subtitle"></p>
+          <p class="subtitle" id="home-sub"></p>
         </div>
-        <button id="btn-rules" class="icon-btn" aria-label="Uitleg">?</button>
-        <button id="btn-settings" class="icon-btn" aria-label="Instellingen">
-          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5ZM13 15.5A3.5 3.5 0 1 1 13 8.5a3.5 3.5 0 0 1 0 7Z" transform="translate(-1 0)"/></svg>
-        </button>
+        <button class="icon-btn" data-open="dlg-rules" aria-label="Uitleg">?</button>
+        <button class="icon-btn" data-open="dlg-scores" aria-label="Beste scores">🏆</button>
+        <button class="icon-btn btn-settings" aria-label="Instellingen">⚙︎</button>
+      </header>
+
+      <div class="player card">
+        <div class="player-cat"></div>
+        <div class="player-info">
+          <div class="player-title" id="player-title"></div>
+          <div class="bar"><div class="bar-fill" id="player-bar"></div></div>
+          <div class="player-points" id="player-points"></div>
+        </div>
+      </div>
+
+      <div class="home-actions">
+        <button id="btn-continue" class="primary big">Verder spelen</button>
+        <button id="btn-free" class="secondary big">Vrij spel</button>
+      </div>
+
+      <div id="worlds" class="worlds"></div>
+      <p class="version" id="version"></p>
+    </section>
+
+    <!-- Game -->
+    <section id="game" class="screen" hidden>
+      <header class="top">
+        <button id="btn-home" class="icon-btn" aria-label="Terug naar levels">←</button>
+        <div class="title center">
+          <h2 id="game-title"></h2>
+          <p class="subtitle" id="game-sub"></p>
+        </div>
+        <div class="score-box" aria-live="polite">
+          <span class="score-label">Score</span>
+          <span id="score" class="score"></span>
+        </div>
       </header>
 
       <div id="tracker" class="tracker" aria-label="Gevonden katten"></div>
@@ -35,15 +72,25 @@
         <div id="loading" class="loading" hidden>Puzzel wordt gemaakt…</div>
       </main>
 
+      <div id="hint-panel" class="hint-panel" hidden>
+        <p id="hint-text"></p>
+        <div class="hint-actions">
+          <button id="hint-why" class="secondary small">Waarom? <em>−5%</em></button>
+          <button id="hint-do" class="primary small">Doe maar <em>−10%</em></button>
+          <button id="hint-close" class="secondary small">Sluit</button>
+        </div>
+      </div>
+
       <nav class="toolbar">
         <button id="btn-undo" class="tool"><span class="ico">↶</span><span>Terug</span></button>
         <button id="btn-redo" class="tool"><span class="ico">↷</span><span>Opnieuw</span></button>
         <button id="btn-check" class="tool"><span class="ico">✓</span><span>Controleer</span></button>
+        <button id="btn-hint" class="tool"><span class="ico">💡</span><span>Hint</span></button>
         <button id="btn-help" class="tool"><span class="ico ico-cat"></span><span>Kat plaatsen</span></button>
-        <button id="btn-new" class="tool"><span class="ico">＋</span><span>Nieuwe puzzel</span></button>
       </nav>
-      <p id="toast" class="toast" role="status" aria-live="polite"></p>
-    </div>
+    </section>
+
+    <p id="toast" class="toast" role="status" aria-live="polite"></p>
 
     <dialog id="dlg-settings">
       <form method="dialog">
@@ -51,14 +98,14 @@
         <label class="row">
           <span>
             <strong>Auto-kruisjes</strong>
-            <small>Na een kat worden rij, kolom, kleur en buurvakjes vanzelf gekruist.</small>
+            <small>Na een goede kat worden rij, kolom, kleur en buurvakjes vanzelf gekruist.</small>
           </span>
           <input type="checkbox" id="set-auto" class="switch" />
         </label>
         <label class="row">
           <span>
             <strong>Bordgrootte</strong>
-            <small>Standaard 10×10. Groter wordt pas actief bij een nieuwe puzzel.</small>
+            <small>Standaard 10×10. Elke maat heeft eigen levels en voortgang.</small>
           </span>
           <select id="set-size">
             <option value="10">10×10</option>
@@ -84,9 +131,32 @@
         <ul class="rules">
           <li>Tik: kruisje. Nog een keer tikken (of dubbeltik): kat. Nog een keer: leeg.</li>
           <li>Sleep met je vinger over lege vakjes om snel veel kruisjes te zetten.</li>
-          <li>Er zijn geen levens. Fouten maken mag; <em>Controleer</em> laat zien welke katten verkeerd staan.</li>
+        </ul>
+        <h3>Punten</h3>
+        <ul class="rules">
+          <li>Moeilijkere puzzels zijn meer punten waard. Er loopt geen klok.</li>
+          <li>Hint: <em>Waar?</em> −5%, <em>Waarom?</em> −5%, <em>Doe maar</em> −10%. Kat plaatsen −25%. Foute kat −10%.</li>
+          <li><em>Controleer</em> is gratis: die laat kruisjes zien die op de plek van een kat staan.</li>
+          <li>⭐⭐⭐ helemaal zelf · ⭐⭐ met hints of een foute kat · ⭐ met geplaatste katten.</li>
         </ul>
         <div class="actions"><button class="primary">Begrepen</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="dlg-scores">
+      <form method="dialog">
+        <h2>Beste scores</h2>
+        <ol id="score-list" class="score-list"></ol>
+        <div class="actions"><button class="primary">Sluit</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="dlg-news">
+      <form method="dialog">
+        <div class="win-cat"></div>
+        <h2 id="news-title">Nieuw in deze versie</h2>
+        <ul id="news-list" class="rules"></ul>
+        <div class="actions"><button class="primary">Leuk!</button></div>
       </form>
     </dialog>
 
@@ -94,10 +164,11 @@
       <form method="dialog">
         <div class="win-cat"></div>
         <h2>Opgelost!</h2>
+        <div id="win-stars" class="win-stars"></div>
         <p id="win-text"></p>
         <div class="actions">
           <button value="stay" class="secondary">Bekijk bord</button>
-          <button value="next" class="primary">Volgende puzzel</button>
+          <button value="next" class="primary" id="win-next">Volgende</button>
         </div>
       </form>
     </dialog>
