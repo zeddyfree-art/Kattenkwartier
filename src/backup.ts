@@ -58,7 +58,8 @@ export function applyBackup(b: Backup, takeCurrent: boolean): boolean {
   Object.assign(progress, mergeProgress(progress, b.progress));
   saveProgress();
   const local = load<string | null>('lastPlayed', null);
-  if (takeCurrent && b.current && b.lastPlayed && (!local || b.lastPlayed > local)) {
+  const unfinished = !!b.current && !(b.current as { solved?: boolean }).solved;
+  if (takeCurrent && unfinished && b.lastPlayed && (!local || b.lastPlayed > local)) {
     save('current2', b.current);
     save('lastPlayed', b.lastPlayed);
     return true;

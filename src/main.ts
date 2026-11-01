@@ -574,11 +574,11 @@ function renderBackup() {
 }
 
 function afterRestore(changedCurrent: boolean) {
+  renderHome();
   if (changedCurrent) {
-    toast('Bijgewerkt met de nieuwste puzzel van je andere apparaat.');
-    setTimeout(() => location.reload(), 900);
-  } else {
-    renderHome();
+    // The unfinished puzzle came from the other device: reload to open it.
+    toast('Bijgewerkt, ook met de puzzel waar je op je andere apparaat mee bezig was.');
+    setTimeout(() => location.reload(), 1200);
   }
 }
 
