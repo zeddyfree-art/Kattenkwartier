@@ -1,4 +1,5 @@
 /** Everything that is saved on the device. */
+import { t } from './theme';
 
 const PREFIX = 'kk:';
 
@@ -23,6 +24,8 @@ export interface Settings {
   autoCross: boolean;
   size: number;
   coat: string;
+  pandaCoat: string;
+  theme: string;
   palette: string;
   sound: boolean;
 }
@@ -51,7 +54,7 @@ export interface Progress {
   top: ScoreEntry[];
 }
 
-export const settings: Settings = { autoCross: true, size: 10, coat: 'lapjes', palette: 'pastel', sound: false, ...load<Partial<Settings>>('settings', {}) };
+export const settings: Settings = { autoCross: true, size: 10, coat: 'lapjes', pandaCoat: 'rodepanda', theme: 'katten', palette: 'pastel', sound: false, ...load<Partial<Settings>>('settings', {}) };
 export const progress: Progress = {
   levels: {}, freeSeed: {}, freePoints: 0, freeSolved: 0, top: [],
   ...load<Partial<Progress>>('progress2', {}),
@@ -71,40 +74,31 @@ export function addTopScore(entry: ScoreEntry): number {
   return progress.top.indexOf(entry);
 }
 
-/** Player titles, unlocked by total points. */
-export const TITLES = [
-  { name: 'Kitten', min: 0 },
-  { name: 'Speelse kitten', min: 500 },
-  { name: 'Huiskat', min: 1500 },
-  { name: 'Vensterbankkat', min: 3500 },
-  { name: 'Straatkat', min: 7000 },
-  { name: 'Tuinkoningin', min: 12000 },
-  { name: 'Kattenkoningin', min: 20000 },
-];
+/** Player titles, unlocked by total points. Names come from the theme (cats or pandas). */
+export const TITLE_POINTS = [0, 500, 1500, 3500, 7000, 12000, 20000];
+
+export const titleName = (k: number) => t().titles[k];
 
 export function titleFor(points: number) {
   let k = 0;
-  while (k + 1 < TITLES.length && points >= TITLES[k + 1].min) k++;
-  return { index: k, title: TITLES[k], next: TITLES[k + 1] ?? null };
+  while (k + 1 < TITLE_POINTS.length && points >= TITLE_POINTS[k + 1]) k++;
+  const at = (i: number) => ({ name: titleName(i), min: TITLE_POINTS[i] });
+  return { index: k, title: at(k), next: k + 1 < TITLE_POINTS.length ? at(k + 1) : null };
 }
 
-/** What each title unlocks. Everything without an entry is available from the start. */
-export const UNLOCKS: { title: number; kind: 'coat' | 'palette'; id: string }[] = [
-  { title: 1, kind: 'coat', id: 'rood' },
-  { title: 2, kind: 'coat', id: 'cypers' },
-  { title: 2, kind: 'palette', id: 'herfst' },
-  { title: 3, kind: 'coat', id: 'zwartwit' },
-  { title: 4, kind: 'coat', id: 'siamees' },
-  { title: 4, kind: 'palette', id: 'oceaan' },
-  { title: 5, kind: 'coat', id: 'grijs' },
-  { title: 6, kind: 'coat', id: 'koningin' },
-];
+/**
+ * What each title unlocks. Animal looks (cat coats or panda looks) unlock by their
+ * position: look 1 with title 1, look 2 with title 2, and so on. Palettes are listed here;
+ * everything else is available from the start.
+ */
+export const PALETTE_UNLOCKS: Record<string, number> = { herfst: 2, oceaan: 4 };
 
-/** The title needed for an item (0 = from the start). */
-export function unlockTitle(kind: 'coat' | 'palette', id: string): number {
-  return UNLOCKS.find((u) => u.kind === kind && u.id === id)?.title ?? 0;
+/** The title needed: for a look, its position in the list; for a palette, PALETTE_UNLOCKS. */
+export function unlockTitle(kind: 'look' | 'palette', key: string | number): number {
+  if (kind === 'look') return Number(key);
+  return PALETTE_UNLOCKS[key as string] ?? 0;
 }
 
-export function isUnlocked(kind: 'coat' | 'palette', id: string, points = totalPoints()): boolean {
-  return titleFor(points).index >= unlockTitle(kind, id);
+export function isUnlocked(kind: 'look' | 'palette', key: string | number, points = totalPoints()): boolean {
+  return titleFor(points).index >= unlockTitle(kind, key);
 }
