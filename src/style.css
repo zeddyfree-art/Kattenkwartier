@@ -35,6 +35,9 @@ body {
   overscroll-behavior: none;
 }
 button { font: inherit; color: inherit; }
+/* No double-tap zoom on iPad: taps go to the game, not to Safari. */
+html, body, button, .tool, .level { touch-action: manipulation; }
+.board, .board * { touch-action: none; }
 
 #game {
   height: 100dvh;
