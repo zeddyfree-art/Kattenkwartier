@@ -12,6 +12,14 @@ export const APP_VERSION = __APP_VERSION__;
 /** Newest first. Shown once after an update. */
 export const CHANGELOG: { version: string; items: string[] }[] = [
   {
+    version: '0.3.0',
+    items: [
+      '200 levels in 10 werelden, allemaal 10×10 en steeds moeilijker',
+      'Een groter bord kies je nu voor Vrij spel (Instellingen)',
+      'Back-up: bewaar je voortgang als bestand of in Google Drive',
+    ],
+  },
+  {
     version: '0.2.0',
     items: [
       '100 levels in 5 werelden, steeds moeilijker (10×10)',

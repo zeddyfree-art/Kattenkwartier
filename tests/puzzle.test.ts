@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { generate, solve } from '../src/puzzle';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { mergeProgress } from '../src/backup';
 import { CAT, CROSS, EMPTY, Game, type Mode } from '../src/game';
 import { LEVELS_PER_WORLD, WORLDS, decodeLevel, type LevelData } from '../src/levels';
 import { NO, Solver, TECH, grade } from '../src/solver';
@@ -133,33 +134,46 @@ describe('solver', () => {
   });
 });
 
-describe('level packs', () => {
-  const dir = new URL('../src/levels/', import.meta.url);
-  const files = readdirSync(dir).filter((f) => f.endsWith('.json'));
+describe('levels', () => {
+  const pack = JSON.parse(readFileSync(new URL('../src/levels/10.json', import.meta.url), 'utf8')) as LevelData[];
 
-  it('has a 10×10 pack', () => {
-    expect(files).toContain('10.json');
+  it('has 10 worlds of 20 unique 10×10 levels', () => {
+    expect(WORLDS).toHaveLength(10);
+    expect(pack).toHaveLength(WORLDS.length * LEVELS_PER_WORLD);
+    expect(new Set(pack.map((d) => d.r)).size).toBe(pack.length);
+    expect(pack.every((d) => d.s.length === 10)).toBe(true);
   });
 
-  for (const f of files) {
-    it(`${f}: 5 worlds of 20 unique, logically solvable levels in the right difficulty`, () => {
-      const pack = JSON.parse(readFileSync(new URL(f, dir), 'utf8')) as LevelData[];
-      expect(pack).toHaveLength(WORLDS.length * LEVELS_PER_WORLD);
-      expect(new Set(pack.map((d) => d.r)).size).toBe(pack.length);
-      pack.forEach((d, i) => {
-        const w = WORLDS[Math.floor(i / LEVELS_PER_WORLD)];
-        const p = decodeLevel(d);
-        expect(solve(p.n, p.regions, 2)).toEqual([p.solution]);
-        const g = grade(p.regions);
-        expect(g.solved).toBe(true);
-        expect(g.level).toBe(d.g);
-        expect(d.g).toBeGreaterThanOrEqual(w.minTech);
-        expect(d.g).toBeLessThanOrEqual(w.maxTech);
-      });
+  it('every level has one solution and can be solved without guessing at its world\'s difficulty', () => {
+    pack.forEach((d, i) => {
+      const w = WORLDS[Math.floor(i / LEVELS_PER_WORLD)];
+      const p = decodeLevel(d);
+      expect(solve(p.n, p.regions, 2)).toEqual([p.solution]);
+      const g = grade(p.regions);
+      expect(g.solved).toBe(true);
+      expect(g.level).toBe(d.g);
+      expect(d.g).toBeGreaterThanOrEqual(w.minTech);
+      expect(d.g).toBeLessThanOrEqual(w.maxTech);
     });
-  }
+  });
 
   it('worlds get harder', () => {
-    expect(WORLDS.map((w) => w.minTech)).toEqual([TECH.single, TECH.blocker, TECH.pair, TECH.group, TECH.whatIf]);
+    expect(WORLDS.slice(0, 5).map((w) => w.minTech)).toEqual([TECH.single, TECH.blocker, TECH.pair, TECH.group, TECH.whatIf]);
+    const avg = (w: number) => pack.slice(w * 20, w * 20 + 20).reduce((s, d) => s + d.e, 0) / 20;
+    for (let w = 5; w < 10; w++) expect(avg(w)).toBeGreaterThanOrEqual(avg(w - 1));
+  });
+});
+
+describe('back-up', () => {
+  it('merges progress without losing results', () => {
+    const a = { levels: { '10:0': { best: 90, stars: 2 }, '10:1': { best: 50, stars: 1 } }, freeSeed: { 10: 3 }, freePoints: 100, freeSolved: 1,
+      top: [{ score: 90, label: 'a', stars: 2, date: 'x' }] };
+    const b = { levels: { '10:0': { best: 80, stars: 3 }, '10:2': { best: 70, stars: 3 } }, freeSeed: { 10: 5, 12: 1 }, freePoints: 40, freeSolved: 2,
+      top: [{ score: 90, label: 'a', stars: 2, date: 'x' }, { score: 95, label: 'b', stars: 3, date: 'y' }] };
+    const m = mergeProgress(a, b);
+    expect(m.levels['10:0']).toEqual({ best: 90, stars: 3 });
+    expect(Object.keys(m.levels).sort()).toEqual(['10:0', '10:1', '10:2']);
+    expect(m.freeSeed).toEqual({ 10: 5, 12: 1 });
+    expect(m.top.map((e) => e.score)).toEqual([95, 90]);
   });
 });
