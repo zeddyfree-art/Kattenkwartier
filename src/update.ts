@@ -12,6 +12,15 @@ export const APP_VERSION = __APP_VERSION__;
 /** Newest first. Shown once after an update. */
 export const CHANGELOG: { version: string; items: string[] }[] = [
   {
+    version: '0.4.0',
+    items: [
+      'Mijn katten: speel nieuwe vachten vrij met je kattentitels (rode kater, cyperse kat, siamees en meer)',
+      'Nieuwe kleurenpaletten: Helder, Herfst, Oceaan en een kleurenblind-vriendelijk palet met patroontjes',
+      'De katten knipperen af en toe, en rekken zich uit als je een puzzel oplost',
+      'Geluid (zet je aan bij Instellingen)',
+    ],
+  },
+  {
     version: '0.3.1',
     items: [
       'Tik op een kruisje haalt het weg (wordt geen kat meer)',

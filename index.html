@@ -40,6 +40,7 @@
           <div class="bar"><div class="bar-fill" id="player-bar"></div></div>
           <div class="player-points" id="player-points"></div>
         </div>
+        <button id="btn-collection" class="secondary small collection-btn">Mijn katten</button>
       </div>
 
       <div class="home-actions">
@@ -104,6 +105,13 @@
         </label>
         <label class="row">
           <span>
+            <strong>Geluid</strong>
+            <small>Zachte geluidjes bij kruisjes en katten, en een miauw als je klaar bent.</small>
+          </span>
+          <input type="checkbox" id="set-sound" class="switch" />
+        </label>
+        <label class="row">
+          <span>
             <strong>Bordgrootte voor Vrij spel</strong>
             <small>De levels zijn altijd 10×10. Voor Vrij spel kun je een groter bord kiezen.</small>
           </span>
@@ -163,6 +171,18 @@
           <li>⭐⭐⭐ helemaal zelf · ⭐⭐ met hints of een foute kat · ⭐ met geplaatste katten.</li>
         </ul>
         <div class="actions"><button class="primary">Begrepen</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="dlg-collection">
+      <form method="dialog">
+        <h2>Mijn katten</h2>
+        <p class="muted">Met punten verdien je nieuwe titels. Elke titel ontgrendelt iets nieuws.</p>
+        <h3>Vacht</h3>
+        <div id="coat-grid" class="coat-grid"></div>
+        <h3>Kleuren</h3>
+        <div id="palette-list" class="palette-list"></div>
+        <div class="actions"><button class="primary">Klaar</button></div>
       </form>
     </dialog>
 

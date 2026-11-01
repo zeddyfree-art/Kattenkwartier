@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { generate, solve } from '../src/puzzle';
 import { readFileSync } from 'node:fs';
 import { mergeProgress } from '../src/backup';
+import { COATS, catSvg } from '../src/cat';
+import { PALETTES } from '../src/palettes';
+import { TITLES, UNLOCKS, isUnlocked } from '../src/store';
 import { CAT, CROSS, EMPTY, Game, type Mode } from '../src/game';
 import { LEVELS_PER_WORLD, WORLDS, decodeLevel, type LevelData } from '../src/levels';
 import { NO, Solver, TECH, grade } from '../src/solver';
@@ -176,5 +179,40 @@ describe('back-up', () => {
     expect(Object.keys(m.levels).sort()).toEqual(['10:0', '10:1', '10:2']);
     expect(m.freeSeed).toEqual({ 10: 5, 12: 1 });
     expect(m.top.map((e) => e.score)).toEqual([95, 90]);
+  });
+});
+
+describe('look and unlocks', () => {
+  it('every palette has 14 distinct colours with names', () => {
+    for (const p of PALETTES) {
+      expect(p.colors).toHaveLength(14);
+      expect(p.names).toHaveLength(14);
+      expect(new Set(p.colors).size).toBe(14);
+      expect(new Set(p.names).size).toBe(14);
+    }
+  });
+
+  it('every unlock points to an existing coat or palette and a real title', () => {
+    for (const u of UNLOCKS) {
+      expect(u.title).toBeGreaterThan(0);
+      expect(u.title).toBeLessThan(TITLES.length);
+      const list = u.kind === 'coat' ? COATS : PALETTES;
+      expect(list.some((x) => x.id === u.id)).toBe(true);
+    }
+  });
+
+  it('unlocks follow the points', () => {
+    expect(isUnlocked('coat', 'lapjes', 0)).toBe(true);
+    expect(isUnlocked('palette', 'kleurenblind', 0)).toBe(true);
+    expect(isUnlocked('coat', 'rood', 499)).toBe(false);
+    expect(isUnlocked('coat', 'rood', 500)).toBe(true);
+    expect(isUnlocked('coat', 'koningin', 19999)).toBe(false);
+    expect(isUnlocked('coat', 'koningin', 20000)).toBe(true);
+  });
+
+  it('draws every coat with unique clip ids', () => {
+    const a = catSvg(COATS[0]), b = catSvg(COATS[0]);
+    expect(a.match(/clipPath id="([^"]+)"/)![1]).not.toBe(b.match(/clipPath id="([^"]+)"/)![1]);
+    for (const c of COATS) expect(catSvg(c)).toContain('<svg');
   });
 });

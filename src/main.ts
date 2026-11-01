@@ -1,22 +1,36 @@
 import './style.css';
-import { calico } from './cat';
+import { COATS, calico, catSvg, setCoat } from './cat';
 import { CAT, COST, CROSS, EMPTY, Game, basePoints, type Mode, type SavedGame } from './game';
 import { exportFile, readFile, applyBackup } from './backup';
 import { driveAvailable, driveLinked, hasToken, lastSync, syncDrive, unlinkDrive } from './drive';
 import { LEVEL_SIZE, LEVELS_PER_WORLD, WORLDS, decodeLevel, type LevelData } from './levels';
 import { loadPack } from './packs';
 import type { Puzzle } from './puzzle';
-import { TECH_NAMES, type Step } from './solver';
+import { PALETTES, PATTERN_NAMES, paletteById } from './palettes';
+import { TECH_NAMES, setColorNames, type Step } from './solver';
+import { setSound, sound } from './sound';
 import {
-  addTopScore, load, progress, save, saveProgress, saveSettings, settings, titleFor, totalPoints,
+  TITLES, UNLOCKS, addTopScore, isUnlocked, load, progress, save, saveProgress, saveSettings, settings, titleFor, totalPoints, unlockTitle,
 } from './store';
 import { APP_VERSION, CHANGELOG, applyUpdate, watchForUpdates } from './update';
 
-/** Soft but distinct region colours (enough for 14×14). Order matches COLOR_NAMES in solver.ts. */
-const PALETTE = [
-  '#f2899b', '#8fd18a', '#f6c85f', '#7fb3ee', '#b993e6', '#f5a066', '#5cc8bb',
-  '#f4b9d8', '#c9e07a', '#a3a6f2', '#dcb38d', '#9fdcf5', '#d98fb5', '#b4c39c',
-];
+/** Apply the chosen look: coat, palette (also the colour names in hints) and sound. */
+function applyLook() {
+  if (!isUnlocked('coat', settings.coat)) settings.coat = 'lapjes';
+  if (!isUnlocked('palette', settings.palette)) settings.palette = 'pastel';
+  setCoat(settings.coat);
+  const pal = paletteById(settings.palette);
+  setColorNames(pal.patterns ? pal.names.map((n, k) => (PATTERN_NAMES[k % 7] ? `${n} (${PATTERN_NAMES[k % 7]})` : n)) : pal.names);
+  setSound(settings.sound);
+}
+applyLook();
+
+function regionStyle(el: HTMLElement, k: number) {
+  const pal = paletteById(settings.palette);
+  el.style.setProperty('--bg', pal.colors[k % pal.colors.length]);
+  for (let p = 1; p < 7; p++) el.classList.remove(`pat-${p}`);
+  if (pal.patterns && k % 7) el.classList.add(`pat-${k % 7}`);
+}
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const homeEl = $('home');
@@ -221,7 +235,8 @@ function buildBoard() {
       const el = document.createElement('div');
       el.className = 'cell';
       el.dataset.i = String(r * n + c);
-      el.style.setProperty('--bg', PALETTE[reg % PALETTE.length]);
+      regionStyle(el, reg);
+      el.style.setProperty('--blink', `${(Math.random() * 7).toFixed(2)}s`);
       el.setAttribute('role', 'gridcell');
       boardEl.append(el);
       cells.push(el);
@@ -230,7 +245,7 @@ function buildBoard() {
     ...Array.from({ length: n }, (_, k) => {
       const t = document.createElement('span');
       t.className = 'track';
-      t.style.setProperty('--bg', PALETTE[k % PALETTE.length]);
+      regionStyle(t, k);
       return t;
     }),
   );
@@ -317,7 +332,7 @@ boardEl.addEventListener('pointermove', (e) => {
 
 function applyDrag(i: number) {
   if (!game || !down) return;
-  if (down.mode === 'paint' && game.marks[i] === EMPTY) game.set(i, CROSS);
+  if (down.mode === 'paint' && game.marks[i] === EMPTY) { game.set(i, CROSS); sound.cross(); }
   if (down.mode === 'erase' && game.marks[i] === CROSS) game.set(i, EMPTY);
   render();
 }
@@ -341,6 +356,11 @@ function endPointer() {
     }
     closeHint();
     flash.clear();
+    const m = game.marks[i];
+    if (result === 'newWrong' || result === 'wrong') sound.wrong();
+    else if (m === CAT) sound.cat();
+    else if (m === CROSS) sound.cross();
+    else sound.clear();
     if (result === 'newWrong') {
       toast(`Deze kat staat fout. −${Math.round(game.base() * COST.wrongCat)} punten`, 'bad');
     } else if (result === 'wrong') {
@@ -413,6 +433,7 @@ $('btn-hint').addEventListener('click', () => {
   const step = g.nextStep(settings.autoCross);
   if (!step) { toast('Geen hint gevonden. Probeer Kat plaatsen.'); return; }
   charge(COST.where);
+  sound.hint();
   const focusCells = [...new Set(step.focus.flatMap((u) => u.cells))];
   const targetCells = step.place >= 0 ? [step.place] : step.cross;
   const names = step.focus.map((u) => g.solver.unitName(u));
@@ -474,6 +495,7 @@ $('btn-help').addEventListener('click', () => {
   const i = game.placeHelpCat();
   if (i < 0) return;
   toast(`Kat geplaatst. −${Math.round(game.base() * COST.cat)} punten`);
+  sound.cat();
   flash = new Set([i]);
   render();
   saveGame();
@@ -489,6 +511,22 @@ function nextAfter(index: number): number {
   const i = index + 1;
   if (!pack || i >= pack.length) return -1;
   return worldOpen(LEVEL_SIZE, Math.floor(i / LEVELS_PER_WORLD)) ? i : -1;
+}
+
+/** Little paws and hearts floating up over the board. */
+function pawBurst() {
+  const box = boardEl.getBoundingClientRect();
+  for (let k = 0; k < 18; k++) {
+    const e = document.createElement('span');
+    e.className = 'paw';
+    e.textContent = k % 3 === 0 ? '💛' : '🐾';
+    e.style.left = `${box.left + Math.random() * box.width}px`;
+    e.style.top = `${box.top + box.height * (0.4 + Math.random() * 0.6)}px`;
+    e.style.animationDelay = `${(Math.random() * 0.5).toFixed(2)}s`;
+    e.style.fontSize = `${18 + Math.random() * 18}px`;
+    document.body.append(e);
+    setTimeout(() => e.remove(), 2200);
+  }
 }
 
 function celebrate() {
@@ -519,12 +557,20 @@ function celebrate() {
   const parts = [`+${score} van de ${basePoints(g.n, g.tech)} punten.${extra}`];
   if (rank === 0 && progress.top.length > 1) parts.push('Je beste score ooit!');
   else if (rank > 0 && rank < 10) parts.push(`Nummer ${rank + 1} in je beste scores.`);
-  if (after.index > before) parts.push(`Je bent nu ${after.title.name}! 🎉`);
+  if (after.index > before) {
+    parts.push(`Je bent nu ${after.title.name}! 🎉`);
+    const fresh = UNLOCKS.filter((u) => u.title > before && u.title <= after.index)
+      .map((u) => (u.kind === 'coat' ? COATS.find((c) => c.id === u.id)!.name : `kleurenpalet ${paletteById(u.id).name}`));
+    if (fresh.length) parts.push(`Ontgrendeld: ${fresh.join(' en ')}. Kies ze bij "Mijn katten".`);
+  }
   $('win-text').textContent = parts.join(' ');
   $('win-stars').innerHTML = starsHtml(stars);
   const nextIsLevel = g.mode.kind === 'level' && nextAfter(g.mode.index) >= 0;
   $('win-next').textContent = g.mode.kind === 'free' ? 'Nieuwe puzzel' : nextIsLevel ? 'Volgende level' : 'Naar levels';
-  setTimeout(() => $<HTMLDialogElement>('dlg-win').showModal(), 700);
+  winDlg.querySelector('.win-cat')!.innerHTML = catSvg();
+  sound.solved();
+  pawBurst();
+  setTimeout(() => $<HTMLDialogElement>('dlg-win').showModal(), 1100);
 }
 
 const winDlg = $<HTMLDialogElement>('dlg-win');
@@ -560,12 +606,63 @@ const settingsDlg = $<HTMLDialogElement>('dlg-settings');
 document.querySelectorAll('.btn-settings').forEach((b) =>
   b.addEventListener('click', () => {
     autoEl.checked = settings.autoCross;
+    soundEl.checked = settings.sound;
     sizeEl.value = String(settings.size);
     renderBackup();
     settingsDlg.showModal();
   }),
 );
 autoEl.addEventListener('change', () => { settings.autoCross = autoEl.checked; saveSettings(); render(); });
+const soundEl = $<HTMLInputElement>('set-sound');
+soundEl.addEventListener('change', () => {
+  settings.sound = soundEl.checked;
+  saveSettings();
+  applyLook();
+  if (settings.sound) sound.meow();
+});
+
+// ---------- My cats: coats and palettes ----------
+
+/** Redraw every cat and colour after the look changed. */
+function refreshLook() {
+  applyLook();
+  document.querySelector('.ico-cat')!.innerHTML = catSvg();
+  document.querySelector('.player-cat')!.innerHTML = catSvg();
+  if (game) {
+    cells.forEach((el, i) => { regionStyle(el, game!.region(i)); delete el.dataset.state; });
+    [...trackerEl.children].forEach((t, k) => { regionStyle(t as HTMLElement, k); t.classList.remove('found'); });
+    render();
+  }
+}
+
+function renderCollection() {
+  const pts = totalPoints();
+  const lockText = (title: number) => `🔒 ${TITLES[title].name} (${TITLES[title].min.toLocaleString('nl-NL')} punten)`;
+  const coats = $('coat-grid');
+  coats.replaceChildren(...COATS.map((c) => {
+    const open = isUnlocked('coat', c.id, pts);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `pick ${settings.coat === c.id ? 'chosen' : ''} ${open ? '' : 'locked'}`;
+    b.disabled = !open;
+    b.innerHTML = `<span class="pick-cat">${catSvg(c)}</span><span class="pick-name">${c.name}</span>${open ? '' : `<span class="pick-lock">${lockText(unlockTitle('coat', c.id))}</span>`}`;
+    b.addEventListener('click', () => { settings.coat = c.id; saveSettings(); refreshLook(); renderCollection(); sound.meow(); });
+    return b;
+  }));
+  const pals = $('palette-list');
+  pals.replaceChildren(...PALETTES.map((p) => {
+    const open = isUnlocked('palette', p.id, pts);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `pick-pal ${settings.palette === p.id ? 'chosen' : ''} ${open ? '' : 'locked'}`;
+    b.disabled = !open;
+    const swatches = p.colors.slice(0, 10).map((col, k) => `<i class="${p.patterns && k % 7 ? `pat-${k % 7}` : ''}" style="--bg:${col}"></i>`).join('');
+    b.innerHTML = `<span class="pal-name">${p.name}</span><span class="swatches">${swatches}</span>${open ? '' : `<span class="pick-lock">${lockText(unlockTitle('palette', p.id))}</span>`}`;
+    b.addEventListener('click', () => { settings.palette = p.id; saveSettings(); refreshLook(); renderCollection(); });
+    return b;
+  }));
+}
+$('btn-collection').addEventListener('click', () => { renderCollection(); $<HTMLDialogElement>('dlg-collection').showModal(); });
 sizeEl.addEventListener('change', () => {
   settings.size = Number(sizeEl.value);
   saveSettings();

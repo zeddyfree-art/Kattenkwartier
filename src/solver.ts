@@ -36,10 +36,15 @@ export interface Step {
   text: string;
 }
 
-export const COLOR_NAMES = [
+let colorNames: string[] = [
   'roze', 'groen', 'geel', 'blauw', 'paars', 'oranje', 'turquoise',
   'lichtroze', 'limoen', 'lavendel', 'beige', 'lichtblauw', 'oudroze', 'saliegroen',
 ];
+
+/** Colour names follow the chosen palette, so hints say the colour she actually sees. */
+export function setColorNames(names: string[]) {
+  colorNames = names;
+}
 
 export class Solver {
   readonly n: number;
@@ -76,7 +81,7 @@ export class Solver {
   unitName(u: Unit): string {
     if (u.kind === 'row') return `rij ${u.index + 1}`;
     if (u.kind === 'col') return `kolom ${u.index + 1}`;
-    return `${COLOR_NAMES[u.index % COLOR_NAMES.length]}`;
+    return colorNames[u.index % colorNames.length];
   }
 
   private list(names: string[]): string {
