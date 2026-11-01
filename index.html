@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#fbf3ec" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1f1b1d" media="(prefers-color-scheme: dark)" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Kattenkwartier" />
+    <meta name="description" content="Rustige kattenlogica-puzzel zonder reclame." />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icon-180.png" />
+    <title>Kattenkwartier</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="top">
+        <div class="title">
+          <h1>Kattenkwartier</h1>
+          <p id="subtitle" class="subtitle"></p>
+        </div>
+        <button id="btn-rules" class="icon-btn" aria-label="Uitleg">?</button>
+        <button id="btn-settings" class="icon-btn" aria-label="Instellingen">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5ZM13 15.5A3.5 3.5 0 1 1 13 8.5a3.5 3.5 0 0 1 0 7Z" transform="translate(-1 0)"/></svg>
+        </button>
+      </header>
+
+      <div id="tracker" class="tracker" aria-label="Gevonden katten"></div>
+
+      <main class="board-wrap">
+        <div id="board" class="board" role="grid" aria-label="Puzzelbord"></div>
+        <div id="loading" class="loading" hidden>Puzzel wordt gemaakt…</div>
+      </main>
+
+      <nav class="toolbar">
+        <button id="btn-undo" class="tool"><span class="ico">↶</span><span>Terug</span></button>
+        <button id="btn-redo" class="tool"><span class="ico">↷</span><span>Opnieuw</span></button>
+        <button id="btn-check" class="tool"><span class="ico">✓</span><span>Controleer</span></button>
+        <button id="btn-help" class="tool"><span class="ico ico-cat"></span><span>Kat plaatsen</span></button>
+        <button id="btn-new" class="tool"><span class="ico">＋</span><span>Nieuwe puzzel</span></button>
+      </nav>
+      <p id="toast" class="toast" role="status" aria-live="polite"></p>
+    </div>
+
+    <dialog id="dlg-settings">
+      <form method="dialog">
+        <h2>Instellingen</h2>
+        <label class="row">
+          <span>
+            <strong>Auto-kruisjes</strong>
+            <small>Na een kat worden rij, kolom, kleur en buurvakjes vanzelf gekruist.</small>
+          </span>
+          <input type="checkbox" id="set-auto" class="switch" />
+        </label>
+        <label class="row">
+          <span>
+            <strong>Bordgrootte</strong>
+            <small>Standaard 10×10. Groter wordt pas actief bij een nieuwe puzzel.</small>
+          </span>
+          <select id="set-size">
+            <option value="10">10×10</option>
+            <option value="11">11×11</option>
+            <option value="12">12×12</option>
+            <option value="13">13×13</option>
+            <option value="14">14×14</option>
+          </select>
+        </label>
+        <div class="actions"><button class="primary">Klaar</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="dlg-rules">
+      <form method="dialog">
+        <h2>Zo speel je</h2>
+        <ul class="rules">
+          <li>Precies <strong>één kat per rij</strong> en <strong>één per kolom</strong>.</li>
+          <li>Precies <strong>één kat per kleur</strong>.</li>
+          <li>Katten mogen elkaar <strong>niet raken</strong>, ook niet schuin.</li>
+        </ul>
+        <h3>Bediening</h3>
+        <ul class="rules">
+          <li>Tik: kruisje. Nog een keer tikken (of dubbeltik): kat. Nog een keer: leeg.</li>
+          <li>Sleep met je vinger over lege vakjes om snel veel kruisjes te zetten.</li>
+          <li>Er zijn geen levens. Fouten maken mag; <em>Controleer</em> laat zien welke katten verkeerd staan.</li>
+        </ul>
+        <div class="actions"><button class="primary">Begrepen</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="dlg-win" class="win">
+      <form method="dialog">
+        <div class="win-cat"></div>
+        <h2>Opgelost!</h2>
+        <p id="win-text"></p>
+        <div class="actions">
+          <button value="stay" class="secondary">Bekijk bord</button>
+          <button value="next" class="primary">Volgende puzzel</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
