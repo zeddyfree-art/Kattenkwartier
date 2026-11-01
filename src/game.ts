@@ -181,10 +181,9 @@ export class Game {
     return 'ok';
   }
 
-  /** Tap cycle: empty → cross → cat → empty. */
-  cycle(i: number) {
-    const next: Mark = this.marks[i] === EMPTY ? CROSS : this.marks[i] === CROSS ? CAT : EMPTY;
-    return this.set(i, next);
+  /** Single tap: empty → cross; a cross or a cat is removed. (A double tap places a cat.) */
+  tap(i: number) {
+    return this.set(i, this.marks[i] === EMPTY ? CROSS : EMPTY);
   }
 
   /** Place one correct cat the player has not found yet. Returns the cell or -1. */

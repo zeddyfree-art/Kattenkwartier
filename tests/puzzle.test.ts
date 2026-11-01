@@ -50,13 +50,14 @@ const mode: Mode = { kind: 'free', n: 10, seed: 1 };
 const newGame = (seed: number) => new Game(generate(10, seed), mode, 3);
 
 describe('game', () => {
-  it('cycles empty → cross → cat → empty and undoes', () => {
+  it('a tap sets a cross, and a tap on a cross or a cat clears it; undo/redo work', () => {
     const g = newGame(1);
-    g.checkpoint(); g.cycle(0);
+    g.checkpoint(); g.tap(0);
     expect(g.marks[0]).toBe(CROSS);
-    g.checkpoint(); g.cycle(0);
-    expect(g.marks[0]).toBe(CAT);
-    g.checkpoint(); g.cycle(0);
+    g.checkpoint(); g.tap(0);
+    expect(g.marks[0]).toBe(EMPTY);
+    g.checkpoint(); g.set(0, CAT);
+    g.checkpoint(); g.tap(0);
     expect(g.marks[0]).toBe(EMPTY);
     g.undo();
     expect(g.marks[0]).toBe(CAT);
