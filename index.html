@@ -25,7 +25,7 @@
     <section id="home" class="screen">
       <header class="top">
         <div class="title">
-          <h1>Kattenkwartier</h1>
+          <h1 data-t="app">Kattenkwartier</h1>
           <p class="subtitle" id="home-sub"></p>
         </div>
         <button class="icon-btn" data-open="dlg-rules" aria-label="Uitleg">?</button>
@@ -40,7 +40,7 @@
           <div class="bar"><div class="bar-fill" id="player-bar"></div></div>
           <div class="player-points" id="player-points"></div>
         </div>
-        <button id="btn-collection" class="secondary small collection-btn">Mijn katten</button>
+        <button id="btn-collection" class="secondary small collection-btn" data-t="mine">Mijn katten</button>
       </div>
 
       <div class="home-actions">
@@ -66,7 +66,7 @@
         </div>
       </header>
 
-      <div id="tracker" class="tracker" aria-label="Gevonden katten"></div>
+      <div id="tracker" class="tracker" aria-label="Gevonden"></div>
 
       <main class="board-wrap">
         <div id="board" class="board" role="grid" aria-label="Puzzelbord"></div>
@@ -87,7 +87,7 @@
         <button id="btn-redo" class="tool"><span class="ico">↷</span><span>Opnieuw</span></button>
         <button id="btn-check" class="tool"><span class="ico">✓</span><span>Controleer</span></button>
         <button id="btn-hint" class="tool"><span class="ico">💡</span><span>Hint</span></button>
-        <button id="btn-help" class="tool"><span class="ico ico-cat"></span><span>Kat plaatsen</span></button>
+        <button id="btn-help" class="tool"><span class="ico ico-cat"></span><span data-t="place">Kat plaatsen</span></button>
       </nav>
     </section>
 
@@ -99,14 +99,21 @@
         <label class="row">
           <span>
             <strong>Auto-kruisjes</strong>
-            <small>Na een goede kat worden rij, kolom, kleur en buurvakjes vanzelf gekruist.</small>
+            <small>Na een goede <span data-t="one">kat</span> worden rij, kolom, kleur en buurvakjes vanzelf gekruist.</small>
           </span>
           <input type="checkbox" id="set-auto" class="switch" />
         </label>
         <label class="row">
           <span>
+            <strong>Thema</strong>
+            <small>Speel met katten of met rode panda's.</small>
+          </span>
+          <select id="set-theme"></select>
+        </label>
+        <label class="row">
+          <span>
             <strong>Geluid</strong>
-            <small>Zachte geluidjes bij kruisjes en katten, en een miauw als je klaar bent.</small>
+            <small data-t="soundText">Zachte geluidjes bij kruisjes en katten, en een miauw als je klaar bent.</small>
           </span>
           <input type="checkbox" id="set-sound" class="switch" />
         </label>
@@ -153,22 +160,22 @@
       <form method="dialog">
         <h2>Zo speel je</h2>
         <ul class="rules">
-          <li>Precies <strong>één kat per rij</strong> en <strong>één per kolom</strong>.</li>
-          <li>Precies <strong>één kat per kleur</strong>.</li>
-          <li>Katten mogen elkaar <strong>niet raken</strong>, ook niet schuin.</li>
+          <li>Precies <strong>één <span data-t="one">kat</span> per rij</strong> en <strong>één per kolom</strong>.</li>
+          <li>Precies <strong>één <span data-t="one">kat</span> per kleur</strong>.</li>
+          <li><span data-t="Many">Katten</span> mogen elkaar <strong>niet raken</strong>, ook niet schuin.</li>
         </ul>
         <h3>Bediening</h3>
         <ul class="rules">
-          <li>Tik: kruisje. Tik op een kruisje of kat: weg.</li>
-          <li>Snel dubbeltikken op een leeg vakje: kat.</li>
+          <li>Tik: kruisje. Tik op een kruisje of <span data-t="one">kat</span>: weg.</li>
+          <li>Snel dubbeltikken op een leeg vakje: <span data-t="one">kat</span>.</li>
           <li>Sleep met je vinger over lege vakjes om snel veel kruisjes te zetten.</li>
         </ul>
         <h3>Punten</h3>
         <ul class="rules">
           <li>Moeilijkere puzzels zijn meer punten waard. Er loopt geen klok.</li>
-          <li>Hint: <em>Waar?</em> −5%, <em>Waarom?</em> −5%, <em>Doe maar</em> −10%. Kat plaatsen −25%. Foute kat −10%.</li>
-          <li><em>Controleer</em> is gratis: die laat kruisjes zien die op de plek van een kat staan.</li>
-          <li>⭐⭐⭐ helemaal zelf · ⭐⭐ met hints of een foute kat · ⭐ met geplaatste katten.</li>
+          <li>Hint: <em>Waar?</em> −5%, <em>Waarom?</em> −5%, <em>Doe maar</em> −10%. <span data-t="place">Kat plaatsen</span> −25%. Foute <span data-t="one">kat</span> −10%.</li>
+          <li><em>Controleer</em> is gratis: die laat kruisjes zien die op de plek van een <span data-t="one">kat</span> staan.</li>
+          <li>⭐⭐⭐ helemaal zelf · ⭐⭐ met hints of een foute kat · ⭐ met geplaatste <span data-t="many">katten</span>.</li>
         </ul>
         <div class="actions"><button class="primary">Begrepen</button></div>
       </form>
@@ -176,9 +183,9 @@
 
     <dialog id="dlg-collection">
       <form method="dialog">
-        <h2>Mijn katten</h2>
+        <h2 data-t="mine">Mijn katten</h2>
         <p class="muted">Met punten verdien je nieuwe titels. Elke titel ontgrendelt iets nieuws.</p>
-        <h3>Vacht</h3>
+        <h3 data-t="coatWord">Vacht</h3>
         <div id="coat-grid" class="coat-grid"></div>
         <h3>Kleuren</h3>
         <div id="palette-list" class="palette-list"></div>

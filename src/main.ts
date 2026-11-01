@@ -1,5 +1,6 @@
 import './style.css';
-import { COATS, calico, catSvg, setCoat } from './cat';
+import { activeLooks, calico, catSvg, setCoat } from './cat';
+import { THEMES, setTheme, t as words } from './theme';
 import { CAT, COST, CROSS, EMPTY, Game, basePoints, type Mode, type SavedGame } from './game';
 import { exportFile, readFile, applyBackup } from './backup';
 import { driveAvailable, driveLinked, hasToken, lastSync, syncDrive, unlinkDrive } from './drive';
@@ -8,22 +9,41 @@ import { loadPack } from './packs';
 import type { Puzzle } from './puzzle';
 import { PALETTES, PATTERN_NAMES, paletteById } from './palettes';
 import { TECH_NAMES, setColorNames, type Step } from './solver';
-import { setSound, sound } from './sound';
+import { setSound, setVoice, sound } from './sound';
 import {
-  TITLES, UNLOCKS, addTopScore, isUnlocked, load, progress, save, saveProgress, saveSettings, settings, titleFor, totalPoints, unlockTitle,
+  PALETTE_UNLOCKS, TITLE_POINTS, addTopScore, isUnlocked, load, progress, save, saveProgress, saveSettings, settings, titleFor, titleName, totalPoints, unlockTitle,
 } from './store';
 import { APP_VERSION, CHANGELOG, applyUpdate, watchForUpdates } from './update';
 
-/** Apply the chosen look: coat, palette (also the colour names in hints) and sound. */
+/** Apply the chosen look: theme, animal, palette (also the colour names in hints) and sound. */
 function applyLook() {
-  if (!isUnlocked('coat', settings.coat)) settings.coat = 'lapjes';
+  setTheme(settings.theme);
+  const looks = activeLooks();
+  const key = words().id === 'pandas' ? 'pandaCoat' : 'coat';
+  const idx = looks.findIndex((l) => l.id === settings[key]);
+  if (idx < 0 || !isUnlocked('look', idx)) settings[key] = looks[0].id;
   if (!isUnlocked('palette', settings.palette)) settings.palette = 'pastel';
-  setCoat(settings.coat);
+  setCoat(settings.coat, settings.pandaCoat);
+  applyTexts();
   const pal = paletteById(settings.palette);
   setColorNames(pal.patterns ? pal.names.map((n, k) => (PATTERN_NAMES[k % 7] ? `${n} (${PATTERN_NAMES[k % 7]})` : n)) : pal.names);
   setSound(settings.sound);
+  setVoice(words().id === 'pandas' ? 'squeak' : 'meow');
 }
 applyLook();
+
+/** All animal words on the page (marked with data-t in index.html). */
+function applyTexts() {
+  const w = words();
+  const map: Record<string, string> = {
+    one: w.one, many: w.many, One: w.One, Many: w.Many, app: w.app,
+    place: `${w.One} plaatsen`, mine: `Mijn ${w.many}`, soundText: w.soundText, coatWord: w.coatWord,
+  };
+  document.querySelectorAll<HTMLElement>('[data-t]').forEach((el) => { el.textContent = map[el.dataset.t!] ?? el.textContent; });
+  document.title = w.app;
+}
+
+const worldName = (w: number) => words().worlds[w];
 
 function regionStyle(el: HTMLElement, k: number) {
   const pal = paletteById(settings.palette);
@@ -66,7 +86,7 @@ function levelKey(n: number, index: number) {
 
 function levelLabel(index: number) {
   const w = Math.floor(index / LEVELS_PER_WORLD);
-  return `${WORLDS[w].name} · level ${index + 1}`;
+  return `${worldName(w)} · level ${index + 1}`;
 }
 
 function solvedInWorld(n: number, w: number): number {
@@ -118,7 +138,7 @@ function renderHome() {
       .reduce((a, b) => a + b, 0);
     card.innerHTML = `
       <div class="world-head">
-        <div><h3>Wereld ${wi + 1}: ${w.name}</h3><p>${open ? w.intro : `🔒 Los ${LEVELS_PER_WORLD / 2} levels op in ${WORLDS[wi - 1]?.name} om deze wereld te openen.`}</p></div>
+        <div><h3>Wereld ${wi + 1}: ${worldName(wi)}</h3><p>${open ? w.intro.replace('{one}', words().one) : `🔒 Los ${LEVELS_PER_WORLD / 2} levels op in ${worldName(wi - 1)} om deze wereld te openen.`}</p></div>
         <div class="world-stars">★ ${stars}/${LEVELS_PER_WORLD * 3}</div>
       </div>`;
     const grid = document.createElement('div');
@@ -251,7 +271,7 @@ function buildBoard() {
   );
   const m = game.mode;
   $('game-title').textContent = m.kind === 'level' ? `Level ${m.index + 1}` : `Vrij spel #${m.seed}`;
-  const world = m.kind === 'level' ? `${WORLDS[Math.floor(m.index / LEVELS_PER_WORLD)].name} · ` : '';
+  const world = m.kind === 'level' ? `${worldName(Math.floor(m.index / LEVELS_PER_WORLD))} · ` : '';
   $('game-sub').textContent = `${world}${n}×${n} · ${TECH_NAMES[game.tech] ?? ''}`;
 }
 
@@ -362,9 +382,9 @@ function endPointer() {
     else if (m === CROSS) sound.cross();
     else sound.clear();
     if (result === 'newWrong') {
-      toast(`Deze kat staat fout. −${Math.round(game.base() * COST.wrongCat)} punten`, 'bad');
+      toast(`Deze ${words().one} staat fout. −${Math.round(game.base() * COST.wrongCat)} punten`, 'bad');
     } else if (result === 'wrong') {
-      toast('Deze kat staat fout.', 'bad');
+      toast(`Deze ${words().one} staat fout.`, 'bad');
     }
     render();
   }
@@ -415,7 +435,7 @@ $('btn-hint').addEventListener('click', () => {
   if (wrongCats.length) {
     hint = { stage: 2, step: null, fix: wrongCats, focusCells: wrongCats, targetCells: wrongCats, whyText: '' };
     showHintPanel(
-      wrongCats.length === 1 ? 'De rode kat staat op een foute plek. Haal hem eerst weg.' : 'De rode katten staan op een foute plek. Haal ze eerst weg.',
+      wrongCats.length === 1 ? `De rode ${words().one} staat op een foute plek. Haal hem eerst weg.` : `De rode ${words().many} staan op een foute plek. Haal ze eerst weg.`,
       false, 'Haal weg',
     );
     render();
@@ -425,13 +445,13 @@ $('btn-hint').addEventListener('click', () => {
   if (wrongX.length) {
     charge(COST.where);
     hint = { stage: 2, step: null, fix: wrongX, focusCells: wrongX, targetCells: wrongX, whyText: '' };
-    showHintPanel('Hier staat een kruisje op een plek waar wél een kat hoort. Daardoor klopt de rest niet meer.', false, 'Haal weg');
+    showHintPanel(`Hier staat een kruisje op een plek waar wél een ${words().one} hoort. Daardoor klopt de rest niet meer.`, false, 'Haal weg');
     render();
     saveGame();
     return;
   }
   const step = g.nextStep(settings.autoCross);
-  if (!step) { toast('Geen hint gevonden. Probeer Kat plaatsen.'); return; }
+  if (!step) { toast(`Geen hint gevonden. Probeer ${words().One} plaatsen.`); return; }
   charge(COST.where);
   sound.hint();
   const focusCells = [...new Set(step.focus.flatMap((u) => u.cells))];
@@ -483,8 +503,8 @@ $('btn-check').addEventListener('click', () => {
   const wrongCats = game.wrongCats();
   flash = new Set([...wrongX, ...wrongCats]);
   render();
-  if (wrongX.length) toast(wrongX.length === 1 ? 'Eén kruisje staat op de plek van een kat.' : `${wrongX.length} kruisjes staan op de plek van een kat.`);
-  else if (wrongCats.length) toast('Haal de rode kat weg, die staat fout.');
+  if (wrongX.length) toast(wrongX.length === 1 ? `Eén kruisje staat op de plek van een ${words().one}.` : `${wrongX.length} kruisjes staan op de plek van een ${words().one}.`);
+  else if (wrongCats.length) toast(`Haal de rode ${words().one} weg, die staat fout.`);
   else toast('Alles wat je hebt gezet klopt. Ga zo door!');
   setTimeout(() => { flash.clear(); render(); }, 2400);
 });
@@ -494,7 +514,7 @@ $('btn-help').addEventListener('click', () => {
   closeHint();
   const i = game.placeHelpCat();
   if (i < 0) return;
-  toast(`Kat geplaatst. −${Math.round(game.base() * COST.cat)} punten`);
+  toast(`${words().One} geplaatst. −${Math.round(game.base() * COST.cat)} punten`);
   sound.cat();
   flash = new Set([i]);
   render();
@@ -559,9 +579,11 @@ function celebrate() {
   else if (rank > 0 && rank < 10) parts.push(`Nummer ${rank + 1} in je beste scores.`);
   if (after.index > before) {
     parts.push(`Je bent nu ${after.title.name}! 🎉`);
-    const fresh = UNLOCKS.filter((u) => u.title > before && u.title <= after.index)
-      .map((u) => (u.kind === 'coat' ? COATS.find((c) => c.id === u.id)!.name : `kleurenpalet ${paletteById(u.id).name}`));
-    if (fresh.length) parts.push(`Ontgrendeld: ${fresh.join(' en ')}. Kies ze bij "Mijn katten".`);
+    const fresh = [
+      ...activeLooks().filter((_, k) => k > before && k <= after.index).map((l) => l.name),
+      ...Object.entries(PALETTE_UNLOCKS).filter(([, k]) => k > before && k <= after.index).map(([id]) => `kleurenpalet ${paletteById(id).name}`),
+    ];
+    if (fresh.length) parts.push(`Ontgrendeld: ${fresh.join(' en ')}. Kies ze bij "Mijn ${words().many}".`);
   }
   $('win-text').textContent = parts.join(' ');
   $('win-stars').innerHTML = starsHtml(stars);
@@ -607,18 +629,28 @@ document.querySelectorAll('.btn-settings').forEach((b) =>
   b.addEventListener('click', () => {
     autoEl.checked = settings.autoCross;
     soundEl.checked = settings.sound;
+    themeEl.value = settings.theme;
     sizeEl.value = String(settings.size);
     renderBackup();
     settingsDlg.showModal();
   }),
 );
 autoEl.addEventListener('change', () => { settings.autoCross = autoEl.checked; saveSettings(); render(); });
+const themeEl = $<HTMLSelectElement>('set-theme');
+themeEl.replaceChildren(...THEMES.map((th) => new Option(th.label, th.id)));
+themeEl.addEventListener('change', () => {
+  settings.theme = themeEl.value;
+  saveSettings();
+  refreshLook();
+  renderHome();
+  if (game) { buildBoard(); render(); }
+});
 const soundEl = $<HTMLInputElement>('set-sound');
 soundEl.addEventListener('change', () => {
   settings.sound = soundEl.checked;
   saveSettings();
   applyLook();
-  if (settings.sound) sound.meow();
+  if (settings.sound) sound.voice();
 });
 
 // ---------- My cats: coats and palettes ----------
@@ -637,16 +669,17 @@ function refreshLook() {
 
 function renderCollection() {
   const pts = totalPoints();
-  const lockText = (title: number) => `🔒 ${TITLES[title].name} (${TITLES[title].min.toLocaleString('nl-NL')} punten)`;
+  const lockText = (title: number) => `🔒 ${titleName(title)} (${TITLE_POINTS[title].toLocaleString('nl-NL')} punten)`;
   const coats = $('coat-grid');
-  coats.replaceChildren(...COATS.map((c) => {
-    const open = isUnlocked('coat', c.id, pts);
+  const key = words().id === 'pandas' ? 'pandaCoat' : 'coat';
+  coats.replaceChildren(...activeLooks().map((c, idx) => {
+    const open = isUnlocked('look', idx, pts);
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = `pick ${settings.coat === c.id ? 'chosen' : ''} ${open ? '' : 'locked'}`;
+    b.className = `pick ${settings[key] === c.id ? 'chosen' : ''} ${open ? '' : 'locked'}`;
     b.disabled = !open;
-    b.innerHTML = `<span class="pick-cat">${catSvg(c)}</span><span class="pick-name">${c.name}</span>${open ? '' : `<span class="pick-lock">${lockText(unlockTitle('coat', c.id))}</span>`}`;
-    b.addEventListener('click', () => { settings.coat = c.id; saveSettings(); refreshLook(); renderCollection(); sound.meow(); });
+    b.innerHTML = `<span class="pick-cat">${catSvg(c)}</span><span class="pick-name">${c.name}</span>${open ? '' : `<span class="pick-lock">${lockText(unlockTitle('look', idx))}</span>`}`;
+    b.addEventListener('click', () => { settings[key] = c.id; saveSettings(); refreshLook(); renderCollection(); sound.voice(); });
     return b;
   }));
   const pals = $('palette-list');

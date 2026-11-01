@@ -1,12 +1,12 @@
 import type { Puzzle } from './puzzle';
 import type { Grade } from './solver';
 
-/** Levels are always 10×10. Worlds of 20 levels, each a step harder. */
+/** Levels are always 10×10. Worlds of 20 levels, each a step harder. (Shown names come from the theme.) */
 export const LEVEL_SIZE = 10;
 
 export const WORLDS = [
   { name: 'Kattenmand', minTech: 1, maxTech: 2, intro: 'Laatste plekjes en lijnsloten.' },
-  { name: 'Vensterbank', minTech: 3, maxTech: 3, intro: 'Nieuw: blokkades. Een kat hier zou een kleur helemaal afsluiten.' },
+  { name: 'Vensterbank', minTech: 3, maxTech: 3, intro: 'Nieuw: blokkades. Een {one} hier zou een kleur helemaal afsluiten.' },
   { name: 'Tuinmuur', minTech: 4, maxTech: 4, intro: 'Nieuw: tweetallen. Twee kleuren die samen twee rijen vullen.' },
   { name: 'Dakgoot', minTech: 5, maxTech: 5, intro: 'Nieuw: groepen van drie of vier kleuren.' },
   { name: 'Schoorsteen', minTech: 6, maxTech: 6, intro: 'Nieuw: "wat als". Soms moet je een stap vooruit denken.' },

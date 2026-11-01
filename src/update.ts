@@ -12,6 +12,14 @@ export const APP_VERSION = __APP_VERSION__;
 /** Newest first. Shown once after an update. */
 export const CHANGELOG: { version: string; items: string[] }[] = [
   {
+    version: '0.5.0',
+    items: [
+      "Nieuw thema: rode panda's! Kies het bij Instellingen → Thema",
+      "7 zelfgetekende panda's om vrij te spelen, van Rode panda tot Pandakoningin",
+      'Alles past zich aan: titels, werelden, hints en geluid',
+    ],
+  },
+  {
     version: '0.4.0',
     items: [
       'Mijn katten: speel nieuwe vachten vrij met je kattentitels (rode kater, cyperse kat, siamees en meer)',

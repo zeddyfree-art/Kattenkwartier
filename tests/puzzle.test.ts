@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { generate, solve } from '../src/puzzle';
 import { readFileSync } from 'node:fs';
 import { mergeProgress } from '../src/backup';
-import { COATS, catSvg } from '../src/cat';
+import { COATS, PANDAS, catSvg } from '../src/cat';
+import { THEMES, setTheme, t } from '../src/theme';
 import { PALETTES } from '../src/palettes';
-import { TITLES, UNLOCKS, isUnlocked } from '../src/store';
+import { PALETTE_UNLOCKS, TITLE_POINTS, isUnlocked, titleFor } from '../src/store';
 import { CAT, CROSS, EMPTY, Game, type Mode } from '../src/game';
 import { LEVELS_PER_WORLD, WORLDS, decodeLevel, type LevelData } from '../src/levels';
 import { NO, Solver, TECH, grade } from '../src/solver';
@@ -192,27 +193,48 @@ describe('look and unlocks', () => {
     }
   });
 
-  it('every unlock points to an existing coat or palette and a real title', () => {
-    for (const u of UNLOCKS) {
-      expect(u.title).toBeGreaterThan(0);
-      expect(u.title).toBeLessThan(TITLES.length);
-      const list = u.kind === 'coat' ? COATS : PALETTES;
-      expect(list.some((x) => x.id === u.id)).toBe(true);
+  it('each theme has one look per title, and palette unlocks point to real palettes', () => {
+    expect(COATS).toHaveLength(TITLE_POINTS.length);
+    expect(PANDAS).toHaveLength(TITLE_POINTS.length);
+    for (const [id, title] of Object.entries(PALETTE_UNLOCKS)) {
+      expect(PALETTES.some((p) => p.id === id)).toBe(true);
+      expect(title).toBeLessThan(TITLE_POINTS.length);
     }
   });
 
   it('unlocks follow the points', () => {
-    expect(isUnlocked('coat', 'lapjes', 0)).toBe(true);
+    expect(isUnlocked('look', 0, 0)).toBe(true);
     expect(isUnlocked('palette', 'kleurenblind', 0)).toBe(true);
-    expect(isUnlocked('coat', 'rood', 499)).toBe(false);
-    expect(isUnlocked('coat', 'rood', 500)).toBe(true);
-    expect(isUnlocked('coat', 'koningin', 19999)).toBe(false);
-    expect(isUnlocked('coat', 'koningin', 20000)).toBe(true);
+    expect(isUnlocked('look', 1, 499)).toBe(false);
+    expect(isUnlocked('look', 1, 500)).toBe(true);
+    expect(isUnlocked('look', 6, 19999)).toBe(false);
+    expect(isUnlocked('look', 6, 20000)).toBe(true);
+    expect(isUnlocked('palette', 'oceaan', 6999)).toBe(false);
+  });
+
+  it('themes have all words, 7 titles and 10 world names', () => {
+    for (const th of THEMES) {
+      expect(th.titles).toHaveLength(TITLE_POINTS.length);
+      expect(th.worlds).toHaveLength(WORLDS.length);
+    }
+  });
+
+  it('red panda theme changes titles and hint texts', () => {
+    setTheme('pandas');
+    expect(titleFor(0).title.name).toBe('Pandababy');
+    const g = newGame(1);
+    let text = '';
+    for (let k = 0; k < 50 && !text.includes('panda'); k++) { const st = g.nextStep(true)!; text = st.text; g.applyStep(st); }
+    expect(text).toContain('panda');
+    expect(text).not.toContain('kat');
+    expect(catSvg()).toContain('<svg');
+    setTheme('katten');
+    expect(t().one).toBe('kat');
   });
 
   it('draws every coat with unique clip ids', () => {
     const a = catSvg(COATS[0]), b = catSvg(COATS[0]);
     expect(a.match(/clipPath id="([^"]+)"/)![1]).not.toBe(b.match(/clipPath id="([^"]+)"/)![1]);
-    for (const c of COATS) expect(catSvg(c)).toContain('<svg');
+    for (const c of [...COATS, ...PANDAS]) expect(catSvg(c)).toContain('<svg');
   });
 });

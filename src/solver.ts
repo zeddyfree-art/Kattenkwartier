@@ -1,3 +1,5 @@
+import { t } from './theme';
+
 /**
  * Human-style logical solver. Finds the easiest next deduction, explains it in plain
  * Dutch, and grades puzzles by the hardest technique needed.
@@ -142,7 +144,7 @@ export class Solver {
         return {
           level: TECH.basic, place: -1, cross,
           focus: [this.rows[r - 1], this.cols[c - 1], this.regs[this.regionOf[i]]],
-          text: `De kat in rij ${r}, kolom ${c} blokkeert haar rij, kolom en kleur, en de vakjes eromheen.`,
+          text: `De ${t().one} in rij ${r}, kolom ${c} blokkeert haar rij, kolom en kleur, en de vakjes eromheen.`,
         };
       }
     }
@@ -157,7 +159,7 @@ export class Solver {
       if (f.length === 1) {
         return {
           level: TECH.single, place: f[0], cross: [], focus: [u],
-          text: `In ${this.unitName(u)} is nog maar één vakje vrij. Daar moet de kat staan.`,
+          text: `In ${this.unitName(u)} is nog maar één vakje vrij. Daar moet de ${t().one} staan.`,
         };
       }
     }
@@ -179,7 +181,7 @@ export class Solver {
       return {
         level: TECH.lineLock, place: -1, cross, focus: [a, line],
         text: `Alle vrije vakjes van ${this.unitName(a)} liggen in ${this.unitName(line)}. ` +
-          `De kat van ${this.unitName(line)} is dus die van ${this.unitName(a)}; de rest van ${this.unitName(line)} valt af.`,
+          `De ${t().one} van ${this.unitName(line)} is dus die van ${this.unitName(a)}; de rest van ${this.unitName(line)} valt af.`,
       };
     };
     const row = (i: number) => Math.floor(i / n), col = (i: number) => i % n, reg = (i: number) => this.regionOf[i];
@@ -208,7 +210,7 @@ export class Solver {
           const r = Math.floor(i / this.n) + 1, c = (i % this.n) + 1;
           const step: Step = {
             level: TECH.blocker, place: -1, cross: [i], focus: [u],
-            text: `Een kat op rij ${r}, kolom ${c} zou alle vrije vakjes van ${this.unitName(u)} blokkeren. Daar kan dus geen kat.`,
+            text: `Een ${t().one} op rij ${r}, kolom ${c} zou alle vrije vakjes van ${this.unitName(u)} blokkeren. Daar kan dus geen ${t().one}.`,
           };
           // Collect all cells that block the same unit for a more useful hint.
           if (!best) best = step;
@@ -252,7 +254,7 @@ export class Solver {
               level: k === 2 ? TECH.pair : TECH.group, place: -1, cross: [...new Set(cross)],
               focus: [...combo.map((x) => open[x]), ...ls],
               text: `${this.list(aNames)} passen samen alleen in ${this.list(lNames)}. ` +
-                `Die ${k} katten vullen ${this.list(lNames)} helemaal; daar is geen plek voor andere katten.`,
+                `Die ${k} ${t().many} vullen ${this.list(lNames)} helemaal; daar is geen plek voor andere ${t().many}.`,
             };
           }
           for (let x = start; x < open.length; x++) {
@@ -303,8 +305,8 @@ export class Solver {
           const r = Math.floor(i / this.n) + 1, c = (i % this.n) + 1;
           return {
             level: TECH.whatIf, place: -1, cross: [i], focus: [this.rows[r - 1], this.cols[c - 1]],
-            text: `Stel dat er een kat staat op rij ${r}, kolom ${c}. Als je dan verder redeneert, ` +
-              `blijft er ergens geen plek over voor een kat. Daar kan dus geen kat.`,
+            text: `Stel dat er een ${t().one} staat op rij ${r}, kolom ${c}. Als je dan verder redeneert, ` +
+              `blijft er ergens geen plek over voor een ${t().one}. Daar kan dus geen ${t().one}.`,
           };
         }
       }
