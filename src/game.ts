@@ -10,7 +10,8 @@ export type Mark = typeof EMPTY | typeof CROSS | typeof CAT;
 /** Where a puzzle comes from. */
 export type Mode =
   | { kind: 'level'; n: number; index: number }
-  | { kind: 'free'; n: number; seed: number };
+  | { kind: 'free'; n: number; seed: number }
+  | { kind: 'daily'; n: number; date: string };
 
 /** Score penalties, as a fraction of the base points. */
 export const COST = { where: 0.05, why: 0.05, doIt: 0.1, cat: 0.25, wrongCat: 0.1 } as const;

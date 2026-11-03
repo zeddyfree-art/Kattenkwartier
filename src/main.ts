@@ -5,13 +5,13 @@ import { CAT, COST, CROSS, EMPTY, Game, basePoints, type Mode, type SavedGame } 
 import { exportFile, readFile, applyBackup } from './backup';
 import { driveAvailable, driveLinked, hasToken, lastSync, syncDrive, unlinkDrive } from './drive';
 import { LEVEL_SIZE, LEVELS_PER_WORLD, WORLDS, decodeLevel, type LevelData } from './levels';
-import { loadPack } from './packs';
+import { loadDaily, loadPack } from './packs';
 import type { Puzzle } from './puzzle';
 import { PALETTES, PATTERN_NAMES, paletteById } from './palettes';
 import { TECH_NAMES, setColorNames, type Step } from './solver';
 import { setSound, setVoice, sound } from './sound';
 import {
-  PALETTE_UNLOCKS, TITLE_POINTS, addTopScore, isUnlocked, load, progress, save, saveProgress, saveSettings, settings, titleFor, titleName, totalPoints, unlockTitle,
+  PALETTE_UNLOCKS, TITLE_POINTS, addTopScore, dailyFor, dailyStreak, dayKey, isUnlocked, load, progress, save, saveProgress, saveSettings, settings, titleFor, titleName, totalPoints, unlockTitle,
 } from './store';
 import { APP_VERSION, CHANGELOG, applyUpdate, watchForUpdates } from './update';
 
@@ -124,6 +124,7 @@ function renderHome() {
   $('btn-continue').textContent = game && !game.solved ? 'Verder spelen' : nextLevelIndex() >= 0 ? 'Volgende level' : 'Nieuwe puzzel';
   $('btn-free').textContent = settings.size === LEVEL_SIZE ? 'Vrij spel' : `Vrij spel ${settings.size}×${settings.size}`;
 
+  renderDaily();
   const worlds = $('worlds');
   worlds.replaceChildren();
   if (!pack) {
@@ -159,6 +160,20 @@ function renderHome() {
   });
 }
 
+function renderDaily() {
+  const date = dayKey();
+  const d = dailyFor(date);
+  const res = progress.daily[date];
+  const streak = dailyStreak();
+  $('daily-date').textContent = `${dateLabel(date)} · ${d.label}`;
+  $('daily-status').innerHTML = res
+    ? `Opgelost ${starsHtml(res.stars)} · ${res.best} punten`
+    : 'Elke dag een nieuwe puzzel, op al je apparaten dezelfde.';
+  $('daily-streak').textContent = streak ? `🔥 ${streak} ${streak === 1 ? 'dag' : 'dagen'} op rij` : '';
+  const playing = game && !game.solved && game.mode.kind === 'daily' && game.mode.date === date;
+  $('btn-daily').textContent = res ? 'Nog eens' : playing ? 'Verder' : 'Speel';
+}
+
 function nextLevelIndex(): number {
   const n = LEVEL_SIZE;
   const total = pack?.length ?? 0;
@@ -190,6 +205,33 @@ function makeFree(n: number, seed: number): Promise<{ puzzle: Puzzle; tech: numb
     worker.postMessage({ n, seed });
   });
 }
+
+const dateLabel = (date: string) => {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' });
+};
+
+async function startDaily() {
+  const date = dayKey();
+  if (game && game.mode.kind === 'daily' && game.mode.date === date) { show('game'); return; }
+  if (!confirmLeave()) return;
+  const d = dailyFor(date);
+  closeHint();
+  game = null;
+  show('game');
+  boardEl.replaceChildren();
+  trackerEl.replaceChildren();
+  $('game-title').textContent = 'Dagpuzzel';
+  $('game-sub').textContent = dateLabel(date);
+  $('score').textContent = '–';
+  loadingEl.hidden = false;
+  const list = (await loadDaily())[d.weekday];
+  const data = list[((d.week % list.length) + list.length) % list.length];
+  loadingEl.hidden = true;
+  setGame(new Game(decodeLevel(data), { kind: 'daily', n: LEVEL_SIZE, date }, data.g));
+}
+
+$('btn-daily').addEventListener('click', () => void startDaily());
 
 function confirmLeave(): boolean {
   if (!game || game.solved || !game.marks.some((m) => m !== EMPTY)) return true;
@@ -270,8 +312,8 @@ function buildBoard() {
     }),
   );
   const m = game.mode;
-  $('game-title').textContent = m.kind === 'level' ? `Level ${m.index + 1}` : `Vrij spel #${m.seed}`;
-  const world = m.kind === 'level' ? `${worldName(Math.floor(m.index / LEVELS_PER_WORLD))} · ` : '';
+  $('game-title').textContent = m.kind === 'level' ? `Level ${m.index + 1}` : m.kind === 'daily' ? 'Dagpuzzel' : `Vrij spel #${m.seed}`;
+  const world = m.kind === 'level' ? `${worldName(Math.floor(m.index / LEVELS_PER_WORLD))} · ` : m.kind === 'daily' ? `${dateLabel(m.date)} · ` : '';
   $('game-sub').textContent = `${world}${n}×${n} · ${TECH_NAMES[game.tech] ?? ''}`;
 }
 
@@ -570,6 +612,14 @@ function celebrate() {
     else if (prev) extra = ` Je record blijft ${prev.best}.`;
     progress.levels[key] = { best: Math.max(prev?.best ?? 0, score), stars: Math.max(prev?.stars ?? 0, stars) };
     label = levelLabel(g.mode.index);
+  } else if (g.mode.kind === 'daily') {
+    const prev = progress.daily[g.mode.date];
+    if (prev && score > prev.best) extra = ` Nieuw record (was ${prev.best}).`;
+    else if (prev) extra = ` Je record blijft ${prev.best}.`;
+    progress.daily[g.mode.date] = { best: Math.max(prev?.best ?? 0, score), stars: Math.max(prev?.stars ?? 0, stars) };
+    label = `Dagpuzzel ${dateLabel(g.mode.date)}`;
+    const streak = dailyStreak();
+    if (streak > 1) extra += ` 🔥 ${streak} dagen op rij!`;
   } else {
     progress.freePoints += score;
     progress.freeSolved++;
@@ -593,7 +643,7 @@ function celebrate() {
   $('win-text').textContent = parts.join(' ');
   $('win-stars').innerHTML = starsHtml(stars);
   const nextIsLevel = g.mode.kind === 'level' && nextAfter(g.mode.index) >= 0;
-  $('win-next').textContent = g.mode.kind === 'free' ? 'Nieuwe puzzel' : nextIsLevel ? 'Volgende level' : 'Naar levels';
+  $('win-next').textContent = g.mode.kind === 'free' ? 'Nieuwe puzzel' : g.mode.kind === 'daily' ? 'Naar start' : nextIsLevel ? 'Volgende level' : 'Naar levels';
   winDlg.querySelector('.win-cat')!.innerHTML = catSvg();
   sound.solved();
   pawBurst();
@@ -605,6 +655,7 @@ winDlg.querySelector('.win-cat')!.innerHTML = calico();
 winDlg.addEventListener('close', () => {
   if (winDlg.returnValue !== 'next' || !game) return;
   if (game.mode.kind === 'free') void startFree();
+  else if (game.mode.kind === 'daily') show('home');
   else {
     const i = nextAfter(game.mode.index);
     if (i >= 0) startLevel(i);

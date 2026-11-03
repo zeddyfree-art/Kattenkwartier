@@ -314,3 +314,11 @@ h3.section { margin: 18px 0 0; padding-top: 12px; border-top: 2px solid var(--li
 .swatches i { width: 18px; height: 18px; border-radius: 5px; background-color: var(--bg); }
 .pick-pal.locked .swatches { filter: grayscale(.8) opacity(.5); }
 .pick-pal .pick-lock { width: 100%; }
+
+/* Daily puzzle */
+.daily { display: flex; align-items: center; gap: 14px; }
+.daily-info { flex: 1; min-width: 0; }
+.daily h3 { margin: 0; font-size: 1.05rem; }
+.daily p { margin: 3px 0 0; }
+.daily .streak { color: var(--accent); font-weight: 700; }
+.daily .streak:empty { display: none; }

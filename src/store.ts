@@ -52,11 +52,13 @@ export interface Progress {
   freeSolved: number;
   /** Personal top list */
   top: ScoreEntry[];
+  /** Daily puzzles: "YYYY-MM-DD" → best result */
+  daily: Record<string, LevelResult>;
 }
 
 export const settings: Settings = { autoCross: true, size: 10, coat: 'lapjes', pandaCoat: 'rodepanda', theme: 'katten', palette: 'pastel', sound: false, ...load<Partial<Settings>>('settings', {}) };
 export const progress: Progress = {
-  levels: {}, freeSeed: {}, freePoints: 0, freeSolved: 0, top: [],
+  levels: {}, freeSeed: {}, freePoints: 0, freeSolved: 0, top: [], daily: {},
   ...load<Partial<Progress>>('progress2', {}),
 };
 
@@ -64,7 +66,8 @@ export function saveSettings() { save('settings', settings); }
 export function saveProgress() { save('progress2', progress); }
 
 export function totalPoints(): number {
-  return Object.values(progress.levels).reduce((s, l) => s + l.best, 0) + progress.freePoints;
+  const sum = (r: Record<string, LevelResult>) => Object.values(r ?? {}).reduce((s, l) => s + l.best, 0);
+  return sum(progress.levels) + sum(progress.daily) + progress.freePoints;
 }
 
 export function addTopScore(entry: ScoreEntry): number {
@@ -101,4 +104,41 @@ export function unlockTitle(kind: 'look' | 'palette', key: string | number): num
 
 export function isUnlocked(kind: 'look' | 'palette', key: string | number, points = totalPoints()): boolean {
   return titleFor(points).index >= unlockTitle(kind, key);
+}
+
+// ---------- Daily puzzle ----------
+
+/** Local date as "YYYY-MM-DD". */
+export function dayKey(d = new Date()): string {
+  const p = (x: number) => String(x).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** Difficulty by weekday, like newspaper puzzles: Monday easy, Sunday hardest. */
+export const DAILY_LEVELS: Record<number, { min: number; max: number; label: string }> = {
+  1: { min: 1, max: 2, label: 'makkelijk' },
+  2: { min: 3, max: 3, label: 'makkelijk' },
+  3: { min: 4, max: 4, label: 'gemiddeld' },
+  4: { min: 4, max: 5, label: 'gemiddeld' },
+  5: { min: 5, max: 5, label: 'pittig' },
+  6: { min: 5, max: 6, label: 'pittig' },
+  0: { min: 6, max: 6, label: 'zwaar' },
+};
+
+export function dailyFor(date: string) {
+  const [y, m, d] = date.split('-').map(Number);
+  const day = new Date(y, m - 1, d);
+  const weekday = day.getDay();
+  // Week number since 4 Jan 2026: each weekday walks through its own list of puzzles.
+  const week = Math.floor((Date.UTC(y, m - 1, d) - Date.UTC(2026, 0, 4)) / (7 * 86400000));
+  return { weekday, week, ...DAILY_LEVELS[weekday] };
+}
+
+/** Days in a row with a solved daily puzzle, counting back from today (or yesterday). */
+export function dailyStreak(today = new Date()): number {
+  const d = new Date(today);
+  if (!progress.daily[dayKey(d)]) d.setDate(d.getDate() - 1);
+  let n = 0;
+  while (progress.daily[dayKey(d)]) { n++; d.setDate(d.getDate() - 1); }
+  return n;
 }

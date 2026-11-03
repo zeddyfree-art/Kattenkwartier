@@ -4,18 +4,27 @@ import type { Grade } from './solver';
 /** Levels are always 10×10. Worlds of 20 levels, each a step harder. (Shown names come from the theme.) */
 export const LEVEL_SIZE = 10;
 
+/**
+ * Each world asks for a bit more. Worlds 1–4 add a technique; worlds 5–8 use the same
+ * techniques but need more of them; only worlds 9–10 need a short "what if" (once or a
+ * few times). This follows how commercial Queens-style puzzles are built: most need no
+ * "what if" at all, and when they do it is a short one.
+ */
 export const WORLDS = [
-  { name: 'Kattenmand', minTech: 1, maxTech: 2, intro: 'Laatste plekjes en lijnsloten.' },
-  { name: 'Vensterbank', minTech: 3, maxTech: 3, intro: 'Nieuw: blokkades. Een {one} hier zou een kleur helemaal afsluiten.' },
-  { name: 'Tuinmuur', minTech: 4, maxTech: 4, intro: 'Nieuw: tweetallen. Twee kleuren die samen twee rijen vullen.' },
-  { name: 'Dakgoot', minTech: 5, maxTech: 5, intro: 'Nieuw: groepen van drie of vier kleuren.' },
-  { name: 'Schoorsteen', minTech: 6, maxTech: 6, intro: 'Nieuw: "wat als". Soms moet je een stap vooruit denken.' },
-  { name: 'Kerktoren', minTech: 6, maxTech: 6, intro: 'Vaker vooruitdenken.' },
-  { name: 'Vuurtoren', minTech: 6, maxTech: 6, intro: 'Langere puzzels met meerdere lastige stappen.' },
-  { name: 'Wolkenrand', minTech: 6, maxTech: 6, intro: 'Voor echte puzzelaars.' },
-  { name: 'Sterrenhemel', minTech: 6, maxTech: 6, intro: 'Bijna de top.' },
-  { name: 'Maanlicht', minTech: 6, maxTech: 6, intro: 'De allerzwaarste puzzels.' },
+  { name: 'Kattenmand', minTech: 1, maxTech: 2, whatIf: [0, 0], intro: 'Laatste plekjes en lijnsloten.' },
+  { name: 'Vensterbank', minTech: 3, maxTech: 3, whatIf: [0, 0], intro: 'Nieuw: blokkades. Een {one} hier zou een kleur helemaal afsluiten.' },
+  { name: 'Tuinmuur', minTech: 4, maxTech: 4, whatIf: [0, 0], intro: 'Nieuw: tweetallen. Twee kleuren die samen twee rijen vullen.' },
+  { name: 'Dakgoot', minTech: 5, maxTech: 5, whatIf: [0, 0], intro: 'Nieuw: groepen van drie of vier kleuren.' },
+  { name: 'Schoorsteen', minTech: 4, maxTech: 5, whatIf: [0, 0], intro: 'Alles door elkaar, en wat langer.' },
+  { name: 'Kerktoren', minTech: 4, maxTech: 5, whatIf: [0, 0], intro: 'Meer tweetallen en groepen.' },
+  { name: 'Vuurtoren', minTech: 4, maxTech: 5, whatIf: [0, 0], intro: 'Langere puzzels.' },
+  { name: 'Wolkenrand', minTech: 4, maxTech: 5, whatIf: [0, 0], intro: 'De langste zonder vooruitdenken.' },
+  { name: 'Sterrenhemel', minTech: 6, maxTech: 6, whatIf: [1, 1], intro: 'Nieuw: één keer kort vooruitdenken ("wat als").' },
+  { name: 'Maanlicht', minTech: 6, maxTech: 6, whatIf: [2, 3], intro: 'Een paar keer kort vooruitdenken.' },
 ] as const;
+
+/** Smallest colour area in a level: no free cats from the start. */
+export const MIN_REGION = 2;
 
 export const LEVELS_PER_WORLD = 20;
 

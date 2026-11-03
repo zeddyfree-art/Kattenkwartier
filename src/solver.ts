@@ -273,18 +273,27 @@ export class Solver {
   }
 
   /**
-   * Follow the simple consequences (up to blockades) of a supposed cat; returns false
-   * on contradiction. Kept short on purpose: a "what if" a person can follow in their head.
+   * Short look-ahead, the way a person checks "what if" in their head: after the
+   * supposed cat, at most two rounds of forced placements (a row, column or colour
+   * with one free cell left). Returns false when that already breaks the puzzle.
+   * Deliberately shallow: deeper chains feel like guessing, not logic.
    */
   private propagate(state: Uint8Array): boolean {
-    for (let guard = 0; guard < 500; guard++) {
+    for (let round = 0; round < 2; round++) {
       if (this.broken(state)) return false;
-      const s = this.next(state, TECH.blocker);
-      if (!s) return true;
-      if (s.place >= 0) this.place(state, s.place);
-      for (const i of s.cross) state[i] = NO;
+      const forced = new Set<number>();
+      for (const u of this.units) {
+        if (this.hasCat(state, u)) continue;
+        const f = this.free(state, u);
+        if (f.length === 1) forced.add(f[0]);
+      }
+      if (!forced.size) return true;
+      for (const i of forced) {
+        if (state[i] !== UNKNOWN) return false; // two forced cats see each other
+        this.place(state, i);
+      }
     }
-    return true;
+    return !this.broken(state);
   }
 
   private whatIf(state: Uint8Array): Step | null {
@@ -305,8 +314,8 @@ export class Solver {
           const r = Math.floor(i / this.n) + 1, c = (i % this.n) + 1;
           return {
             level: TECH.whatIf, place: -1, cross: [i], focus: [this.rows[r - 1], this.cols[c - 1]],
-            text: `Stel dat er een ${t().one} staat op rij ${r}, kolom ${c}. Als je dan verder redeneert, ` +
-              `blijft er ergens geen plek over voor een ${t().one}. Daar kan dus geen ${t().one}.`,
+            text: `Stel dat er een ${t().one} staat op rij ${r}, kolom ${c}. Dan moeten er meteen andere ${t().many} ` +
+              `op hun laatste plekje, en die zitten elkaar in de weg. Daar kan dus geen ${t().one}.`,
           };
         }
       }
@@ -320,6 +329,8 @@ export interface Grade {
   level: number;
   /** Total effort: sum of step weights (for ordering puzzles within a world). */
   effort: number;
+  /** Steps per technique level. */
+  counts: number[];
 }
 
 const WEIGHT = [0, 1, 2, 4, 7, 11, 16];
@@ -328,15 +339,17 @@ const WEIGHT = [0, 1, 2, 4, 7, 11, 16];
 export function grade(regions: number[][]): Grade {
   const s = new Solver(regions);
   const state = new Uint8Array(s.n * s.n);
+  const counts = new Array<number>(7).fill(0);
   let level = 0, effort = 0;
   for (let guard = 0; guard < 2000; guard++) {
-    if (s.done(state)) return { solved: true, level, effort };
+    if (s.done(state)) return { solved: true, level, effort, counts };
     const step = s.next(state);
     if (!step) break;
     level = Math.max(level, step.level);
     effort += WEIGHT[step.level];
+    counts[step.level]++;
     if (step.place >= 0) s.place(state, step.place);
     for (const i of step.cross) state[i] = NO;
   }
-  return { solved: false, level, effort };
+  return { solved: false, level, effort, counts };
 }
