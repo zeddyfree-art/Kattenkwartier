@@ -5,9 +5,9 @@ import { mergeProgress } from '../src/backup';
 import { COATS, PANDAS, catSvg } from '../src/cat';
 import { THEMES, setTheme, t } from '../src/theme';
 import { PALETTES } from '../src/palettes';
-import { PALETTE_UNLOCKS, TITLE_POINTS, isUnlocked, titleFor } from '../src/store';
+import { PALETTE_UNLOCKS, TITLE_POINTS, dailyFor, dailyStreak, isUnlocked, progress, titleFor } from '../src/store';
 import { CAT, CROSS, EMPTY, Game, type Mode } from '../src/game';
-import { LEVELS_PER_WORLD, WORLDS, decodeLevel, type LevelData } from '../src/levels';
+import { LEVELS_PER_WORLD, MIN_REGION, WORLDS, decodeLevel, type LevelData } from '../src/levels';
 import { NO, Solver, TECH, grade } from '../src/solver';
 
 function connected(regions: number[][], id: number): boolean {
@@ -149,37 +149,79 @@ describe('levels', () => {
     expect(pack.every((d) => d.s.length === 10)).toBe(true);
   });
 
-  it('every level has one solution and can be solved without guessing at its world\'s difficulty', () => {
+  it('every level: one solution, no one-cell colour area, solvable with the techniques of its world', () => {
     pack.forEach((d, i) => {
       const w = WORLDS[Math.floor(i / LEVELS_PER_WORLD)];
       const p = decodeLevel(d);
       expect(solve(p.n, p.regions, 2)).toEqual([p.solution]);
+      const sizes = new Array(10).fill(0);
+      p.regions.flat().forEach((v) => sizes[v]++);
+      expect(Math.min(...sizes)).toBeGreaterThanOrEqual(MIN_REGION);
       const g = grade(p.regions);
       expect(g.solved).toBe(true);
       expect(g.level).toBe(d.g);
       expect(d.g).toBeGreaterThanOrEqual(w.minTech);
       expect(d.g).toBeLessThanOrEqual(w.maxTech);
+      expect(g.counts[TECH.whatIf]).toBeGreaterThanOrEqual(w.whatIf[0]);
+      expect(g.counts[TECH.whatIf]).toBeLessThanOrEqual(w.whatIf[1]);
     });
   });
 
   it('worlds get harder', () => {
-    expect(WORLDS.slice(0, 5).map((w) => w.minTech)).toEqual([TECH.single, TECH.blocker, TECH.pair, TECH.group, TECH.whatIf]);
+    expect(WORLDS.slice(0, 4).map((w) => w.minTech)).toEqual([TECH.single, TECH.blocker, TECH.pair, TECH.group]);
     const avg = (w: number) => pack.slice(w * 20, w * 20 + 20).reduce((s, d) => s + d.e, 0) / 20;
-    for (let w = 5; w < 10; w++) expect(avg(w)).toBeGreaterThanOrEqual(avg(w - 1));
+    // Worlds 5–8 share techniques and are ordered by effort; only 9–10 need "what if".
+    for (let w = 5; w < 8; w++) expect(avg(w)).toBeGreaterThan(avg(w - 1));
+    expect(WORLDS.slice(0, 8).every((w) => w.whatIf[1] === 0)).toBe(true);
+  });
+});
+
+describe('daily puzzle', () => {
+  it('has a fixed seed per date and gets harder through the week', () => {
+    const tue = dailyFor('2026-11-03'), nextTue = dailyFor('2026-11-10');
+    expect(tue.weekday).toBe(2);
+    expect(nextTue.week).toBe(tue.week + 1);
+    expect(dailyFor('2026-11-02').max).toBeLessThanOrEqual(2); // Monday
+    expect(dailyFor('2026-11-08').min).toBe(6); // Sunday
+  });
+
+  it('has two years of different, valid puzzles for every weekday', () => {
+    const daily = JSON.parse(readFileSync(new URL('../src/levels/daily.json', import.meta.url), 'utf8')) as Record<string, LevelData[]>;
+    const levelSet = new Set(JSON.parse(readFileSync(new URL('../src/levels/10.json', import.meta.url), 'utf8')).map((d: LevelData) => d.r));
+    const all = Object.values(daily).flat();
+    expect(new Set(all.map((d) => d.r)).size).toBe(all.length);
+    for (const [day, list] of Object.entries(daily)) {
+      expect(list.length).toBeGreaterThanOrEqual(100);
+      for (const d of list.slice(0, 10)) {
+        expect(levelSet.has(d.r)).toBe(false);
+        const p = decodeLevel(d);
+        expect(solve(10, p.regions, 2)).toEqual([p.solution]);
+        expect(d.g).toBeGreaterThanOrEqual(dailyFor(['2026-11-08', '2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07'][Number(day)]).min);
+      }
+    }
+  });
+
+  it('counts a streak of solved days', () => {
+    progress.daily = { '2026-11-01': { best: 1, stars: 1 }, '2026-11-02': { best: 1, stars: 1 }, '2026-11-03': { best: 1, stars: 1 } };
+    expect(dailyStreak(new Date(2026, 10, 3))).toBe(3);
+    expect(dailyStreak(new Date(2026, 10, 4))).toBe(3); // today not played yet
+    expect(dailyStreak(new Date(2026, 10, 6))).toBe(0);
+    progress.daily = {};
   });
 });
 
 describe('back-up', () => {
   it('merges progress without losing results', () => {
-    const a = { levels: { '10:0': { best: 90, stars: 2 }, '10:1': { best: 50, stars: 1 } }, freeSeed: { 10: 3 }, freePoints: 100, freeSolved: 1,
+    const a = { levels: { '10:0': { best: 90, stars: 2 }, '10:1': { best: 50, stars: 1 } }, daily: { '2026-11-01': { best: 100, stars: 2 } }, freeSeed: { 10: 3 }, freePoints: 100, freeSolved: 1,
       top: [{ score: 90, label: 'a', stars: 2, date: 'x' }] };
-    const b = { levels: { '10:0': { best: 80, stars: 3 }, '10:2': { best: 70, stars: 3 } }, freeSeed: { 10: 5, 12: 1 }, freePoints: 40, freeSolved: 2,
+    const b = { levels: { '10:0': { best: 80, stars: 3 }, '10:2': { best: 70, stars: 3 } }, daily: { '2026-11-01': { best: 80, stars: 3 }, '2026-11-02': { best: 60, stars: 1 } }, freeSeed: { 10: 5, 12: 1 }, freePoints: 40, freeSolved: 2,
       top: [{ score: 90, label: 'a', stars: 2, date: 'x' }, { score: 95, label: 'b', stars: 3, date: 'y' }] };
     const m = mergeProgress(a, b);
     expect(m.levels['10:0']).toEqual({ best: 90, stars: 3 });
     expect(Object.keys(m.levels).sort()).toEqual(['10:0', '10:1', '10:2']);
     expect(m.freeSeed).toEqual({ 10: 5, 12: 1 });
     expect(m.top.map((e) => e.score)).toEqual([95, 90]);
+    expect(m.daily).toEqual({ '2026-11-01': { best: 100, stars: 3 }, '2026-11-02': { best: 60, stars: 1 } });
   });
 });
 

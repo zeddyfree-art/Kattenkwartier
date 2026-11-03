@@ -41,8 +41,14 @@ export function mergeProgress(a: Progress, b: Progress): Progress {
   const top = [...new Map([...(a.top ?? []), ...(b.top ?? [])].map((e) => [key(e), e])).values()]
     .sort((x, y) => y.score - x.score)
     .slice(0, 20);
+  const daily = { ...(a.daily ?? {}) };
+  for (const [k, r] of Object.entries(b.daily ?? {})) {
+    const l = daily[k];
+    daily[k] = l ? { best: Math.max(l.best, r.best), stars: Math.max(l.stars, r.stars) } : r;
+  }
   return {
     levels,
+    daily,
     freeSeed,
     freePoints: Math.max(a.freePoints ?? 0, b.freePoints ?? 0),
     freeSolved: Math.max(a.freeSolved ?? 0, b.freeSolved ?? 0),

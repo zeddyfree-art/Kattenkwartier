@@ -1,5 +1,5 @@
 /**
- * Step 1 of making levels: generate and grade many 10×10 puzzles.
+ * Step 1 of making levels: generate many 10×10 puzzles.
  *   npx tsx scripts/make-pool.ts <fromSeed> <count> <out.json>
  */
 import { writeFileSync } from 'node:fs';

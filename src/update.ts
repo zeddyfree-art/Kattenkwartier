@@ -12,6 +12,14 @@ export const APP_VERSION = __APP_VERSION__;
 /** Newest first. Shown once after an update. */
 export const CHANGELOG: { version: string; items: string[] }[] = [
   {
+    version: '0.7.0',
+    items: [
+      '📅 Dagpuzzel: elke dag een nieuwe, van makkelijk op maandag tot zwaar op zondag. Houd je reeks bij!',
+      'Alle levels zijn vernieuwd en logischer: geen gebiedjes van één vakje meer, en "vooruitdenken" alleen nog kort en pas in wereld 9 en 10',
+      'Je sterren en punten blijven gewoon staan',
+    ],
+  },
+  {
     version: '0.6.0',
     items: [
       'Back-up in Google Drive: Instellingen → Back-up → Koppel Google Drive',
