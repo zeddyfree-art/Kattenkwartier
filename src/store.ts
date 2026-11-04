@@ -54,11 +54,13 @@ export interface Progress {
   top: ScoreEntry[];
   /** Daily puzzles: "YYYY-MM-DD" → best result */
   daily: Record<string, LevelResult>;
+  /** School lessons done: technique → true */
+  lessons?: Record<string, boolean>;
 }
 
 export const settings: Settings = { autoCross: true, size: 10, coat: 'lapjes', pandaCoat: 'rodepanda', theme: 'katten', palette: 'pastel', sound: false, ...load<Partial<Settings>>('settings', {}) };
 export const progress: Progress = {
-  levels: {}, freeSeed: {}, freePoints: 0, freeSolved: 0, top: [], daily: {},
+  levels: {}, freeSeed: {}, freePoints: 0, freeSolved: 0, top: [], daily: {}, lessons: {},
   ...load<Partial<Progress>>('progress2', {}),
 };
 

@@ -11,6 +11,16 @@ export const APP_VERSION = __APP_VERSION__;
 
 /** Newest first. Shown once after an update. */
 export const CHANGELOG: { version: string; items: string[] }[] = [
+  {
+    version: '0.8.0',
+    items: [
+      '🎓 Nieuw: de Kattenschool (of Pandaschool)! Zeven korte lessen, één per trucje: van de spelregels tot vooruitdenken',
+      'Elke les legt het trucje uit, laat het één keer zien, en daarna zoek je het zelf op een klein bord',
+      'Bij elke wereld met een nieuw trucje staat een knop 🎓 Les',
+      'De hint bij vooruitdenken vertelt nu stap voor stap waar het vastloopt',
+    ],
+  },
+  { version: '0.7.2', items: ['Blokkade-hints leggen nu precies uit wáárom er geen panda of kat kan staan, en tonen de kleur die het verschil maakt'] },
   { version: '0.7.1', items: ['Auto-kruisjes en Geluid hebben nu een duidelijke aan/uit-schakelaar (Instellingen)'] },
   {
     version: '0.7.0',

@@ -334,3 +334,49 @@ h3.section { margin: 18px 0 0; padding-top: 12px; border-top: 2px solid var(--li
 .daily p { margin: 3px 0 0; }
 .daily .streak { color: var(--accent); font-weight: 700; }
 .daily .streak:empty { display: none; }
+
+/* School */
+.school-card { display: flex; align-items: center; gap: 14px; }
+.school-card h3 { margin: 0; font-size: 1.05rem; }
+.school-card p { margin: 3px 0 0; }
+.school-status { color: var(--accent); font-weight: 700; font-size: .9rem; }
+.world-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.world-lesson { white-space: nowrap; }
+.icon-spacer { width: 44px; flex: none; }
+
+#school {
+  max-width: 760px; margin: 0 auto;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 14px;
+}
+#school.in-lesson { height: 100dvh; max-width: none; align-items: center; padding-bottom: max(12px, env(safe-area-inset-bottom)); gap: 10px; }
+.school-list { display: flex; flex-direction: column; gap: 10px; }
+.school-list[hidden], .lesson[hidden], .board-wrap[hidden] { display: none; }
+.lesson-item {
+  display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; border: none; cursor: pointer;
+}
+.lesson-num {
+  width: 40px; height: 40px; flex: none; border-radius: 50%; display: grid; place-items: center;
+  background: var(--line); font-weight: 800;
+}
+.lesson-item.done .lesson-num { background: #f9e3b5; color: #3a2f2a; }
+.lesson-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.lesson-info small { color: var(--ink-soft); }
+.lesson-go { font-size: 1.6rem; color: var(--ink-soft); }
+
+.lesson { flex: 1; min-height: 0; width: 100%; max-width: 760px; display: flex; flex-direction: column; gap: 10px; }
+.lesson-dots { display: flex; gap: 6px; justify-content: center; }
+.lesson-dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+.lesson-dots i.on { background: var(--accent); }
+.lesson-dots i.now { background: var(--accent); opacity: .45; transform: scale(1.25); }
+.lesson .board-wrap { min-height: 200px; }
+.lesson .board { width: min(100cqw, 100cqh, 560px); }
+.lesson-card {
+  background: var(--panel); border-radius: 18px; box-shadow: 0 2px 10px rgba(0,0,0,.15);
+  padding: 12px 16px; border-left: 5px solid #f6c85f; max-height: 55dvh; overflow: auto;
+}
+.lesson-text p { margin: 0 0 10px; line-height: 1.45; }
+.lesson-cheer { font-size: 1.2rem; font-weight: 800; }
+.lesson-miss { color: var(--danger); }
+/* Without a board (intro, end) the card gets the room. */
+.lesson:has(.board-wrap[hidden]) .lesson-card { max-height: none; flex: 0 1 auto; margin-top: 8px; font-size: 1.05rem; }

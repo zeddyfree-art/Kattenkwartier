@@ -280,3 +280,37 @@ describe('look and unlocks', () => {
     for (const c of [...COATS, ...PANDAS]) expect(catSvg(c)).toContain('<svg');
   });
 });
+
+describe('school', async () => {
+  const { LESSONS, answers, check, lessonExamples } = await import('../src/school');
+  const packs = JSON.parse(readFileSync(new URL('../src/levels/lessons.json', import.meta.url), 'utf8')) as Record<string, LevelData[]>;
+
+  it('every lesson has three clean examples of its own technique', () => {
+    for (const l of LESSONS) {
+      const ex = lessonExamples(l, packs);
+      expect(ex.length, l.title).toBe(3);
+      for (const e of ex) {
+        expect(e.step.level).toBe(l.tech);
+        // Nothing easier is left on the board.
+        for (let lv = 0; lv < l.tech; lv++) expect(e.solver.next(e.state, lv)?.level ?? 99).toBeGreaterThanOrEqual(l.tech);
+      }
+    }
+  });
+
+  it('the planned answer is accepted, a cat cell never is', () => {
+    for (const l of LESSONS)
+      for (const e of lessonExamples(l, packs)) {
+        expect(check(e, answers(e.step)[0])).not.toBeNull();
+        const n = e.puzzle.n;
+        e.puzzle.solution.forEach((c, r) => {
+          if (e.step.place !== r * n + c) expect(check(e, r * n + c)).toBeNull();
+        });
+      }
+  });
+
+  it('lesson progress survives a back-up merge', () => {
+    const base = { levels: {}, daily: {}, freeSeed: {}, freePoints: 0, freeSolved: 0, top: [] };
+    const m = mergeProgress({ ...base, lessons: { 1: true } }, { ...base, lessons: { 3: true } });
+    expect(m.lessons).toEqual({ 1: true, 3: true });
+  });
+});

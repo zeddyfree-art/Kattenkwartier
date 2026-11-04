@@ -15,6 +15,7 @@ Het volledige plan staat in [`docs/VOORSTEL.md`](docs/VOORSTEL.md).
 **Status:** versie 0.3:
 - 200 levels (10×10) in 10 werelden die steeds moeilijker worden. Een groter bord (tot 14×14) kun je kiezen voor Vrij spel.
 - Een logische oplosser die de moeilijkheid bepaalt en hints in stapjes geeft (Waar? → Waarom? → Doe maar).
+- De Kattenschool: zeven korte lessen die elk trucje uitleggen en laten oefenen.
 - Score, sterren, high scores en kattentitels.
 - Back-up als bestand of via Google Drive (zie [`docs/GOOGLE-DRIVE.md`](docs/GOOGLE-DRIVE.md)).
 - Een melding zodra er een update is.
@@ -38,6 +39,7 @@ Elke push naar `main` publiceert automatisch via GitHub Actions. Verhoog bij een
 
 - `src/puzzle.ts`: generator (elke puzzel heeft precies één oplossing)
 - `src/solver.ts`: menselijke oplosser: vindt de makkelijkste volgende stap, legt die uit en bepaalt de moeilijkheid
+- `src/school.ts`, `src/schoolUi.ts`, `src/levels/lessons.json`: de Kattenschool, één les per techniek (`scripts/make-lessons.ts` maakt de lespuzzels)
 - `src/levels.ts`, `src/levels/10.json`: de werelden en de vooraf gemaakte levels (`scripts/make-pool.ts` en daarna `scripts/make-levels.ts`)
 - `src/backup.ts`, `src/drive.ts`: back-up als bestand en synchronisatie met Google Drive
 - `src/update.ts`: updatemelding en "wat is nieuw"

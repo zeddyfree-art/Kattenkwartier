@@ -58,6 +58,15 @@
         <button id="btn-daily" class="primary">Speel</button>
       </div>
 
+      <div class="school-card card">
+        <div class="daily-info">
+          <h3>🎓 <span data-t="school">Kattenschool</span></h3>
+          <p class="muted">Leer de trucjes van elke wereld, met voorbeelden om zelf te proberen.</p>
+          <p id="school-status" class="school-status"></p>
+        </div>
+        <button id="btn-school" class="primary">Naar school</button>
+      </div>
+
       <div id="worlds" class="worlds"></div>
       <p class="version" id="version"></p>
     </section>
@@ -99,6 +108,31 @@
         <button id="btn-hint" class="tool"><span class="ico">💡</span><span>Hint</span></button>
         <button id="btn-help" class="tool"><span class="ico ico-cat"></span><span data-t="place">Kat plaatsen</span></button>
       </nav>
+    </section>
+
+    <!-- School: lessons per technique -->
+    <section id="school" class="screen" hidden>
+      <header class="top">
+        <button id="btn-school-back" class="icon-btn" aria-label="Terug">←</button>
+        <div class="title center">
+          <h2 id="school-title"></h2>
+          <p class="subtitle" id="school-sub"></p>
+        </div>
+        <div class="icon-spacer"></div>
+      </header>
+
+      <div id="school-list" class="school-list"></div>
+
+      <div id="lesson" class="lesson" hidden>
+        <div id="lesson-dots" class="lesson-dots"></div>
+        <main class="board-wrap" id="lesson-wrap">
+          <div id="lesson-board" class="board" role="grid" aria-label="Lesbord"></div>
+        </main>
+        <div class="lesson-card">
+          <div id="lesson-text" class="lesson-text"></div>
+          <div id="lesson-actions" class="hint-actions"></div>
+        </div>
+      </div>
     </section>
 
     <p id="toast" class="toast" role="status" aria-live="polite"></p>
