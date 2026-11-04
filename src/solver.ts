@@ -200,19 +200,11 @@ export class Solver {
     // A cell is impossible if a cat there would leave some unit without free cells.
     let best: { unit: Unit; cells: number[] } | null = null;
     for (let i = 0; i < state.length; i++) {
-      if (state[i] !== UNKNOWN) continue;
-      const blocked = new Set(this.seen[i]);
-      blocked.add(i);
-      for (const u of this.units) {
-        if (u.cells.includes(i) || this.hasCat(state, u)) continue;
-        const f = this.free(state, u);
-        if (f.length && f.every((j) => blocked.has(j))) {
-          // Collect all cells that block the same unit for a more useful hint.
-          if (!best) best = { unit: u, cells: [i] };
-          else if (best.unit === u) best.cells.push(i);
-          break;
-        }
-      }
+      const u = this.blockedBy(state, i);
+      if (!u) continue;
+      // Collect all cells that block the same unit for a more useful hint.
+      if (!best) best = { unit: u, cells: [i] };
+      else if (best.unit === u) best.cells.push(i);
     }
     if (!best) return null;
     const { unit: u, cells } = best;
@@ -224,6 +216,42 @@ export class Solver {
       // so the colours that matter are not dimmed.
       focus: [u, ...why.filter((w) => w !== u)],
       text: text + (more.length ? ` Om dezelfde reden kan er ook geen ${t().one} op ${this.list(more)}.` : ''),
+    };
+  }
+
+  /** The unit a cat on free cell i would close off completely, or null. */
+  private blockedBy(state: Uint8Array, i: number): Unit | null {
+    if (state[i] !== UNKNOWN) return null;
+    const blocked = new Set(this.seen[i]);
+    blocked.add(i);
+    for (const u of this.units) {
+      if (u.cells.includes(i) || this.hasCat(state, u)) continue;
+      const f = this.free(state, u);
+      if (f.length && f.every((j) => blocked.has(j))) return u;
+    }
+    return null;
+  }
+
+  /** Blocker step for this one cell (for the school, where any right cell counts). */
+  blockerFor(state: Uint8Array, i: number): Step | null {
+    const u = this.blockedBy(state, i);
+    if (!u) return null;
+    const { text, why } = this.explainBlock(state, i, u);
+    return { level: TECH.blocker, place: -1, cross: [i], focus: [u, ...why.filter((w) => w !== u)], text };
+  }
+
+  /** "What if" step for this one cell, if a short look-ahead rules it out. */
+  whatIfFor(state: Uint8Array, i: number): Step | null {
+    if (state[i] !== UNKNOWN) return null;
+    const copy = state.slice();
+    this.place(copy, i);
+    const res = this.propagate(copy);
+    if (res.ok) return null;
+    const r = Math.floor(i / this.n), c = i % this.n;
+    return {
+      level: TECH.whatIf, place: -1, cross: [i],
+      focus: [this.rows[r], this.cols[c], ...(res.empty ? [res.empty] : [])].filter((u, k, all) => all.indexOf(u) === k),
+      text: this.explainWhatIf(i, res),
     };
   }
 
@@ -329,28 +357,42 @@ export class Solver {
     return null;
   }
 
+  /** A row, column or colour without a cat and without free cells (or null). */
+  private emptyUnit(state: Uint8Array): Unit | null {
+    for (const u of this.units) if (!this.hasCat(state, u) && !this.free(state, u).length) return u;
+    return null;
+  }
+
   /**
    * Short look-ahead, the way a person checks "what if" in their head: after the
    * supposed cat, at most two rounds of forced placements (a row, column or colour
-   * with one free cell left). Returns false when that already breaks the puzzle.
+   * with one free cell left). Reports how that breaks the puzzle, if it does.
    * Deliberately shallow: deeper chains feel like guessing, not logic.
    */
-  private propagate(state: Uint8Array): boolean {
+  private propagate(state: Uint8Array): WhatIf {
+    const chain: { cell: number; unit: Unit }[] = [];
     for (let round = 0; round < 2; round++) {
-      if (this.broken(state)) return false;
-      const forced = new Set<number>();
+      const empty = this.emptyUnit(state);
+      if (empty) return { ok: false, chain, empty };
+      const forced = new Map<number, Unit>();
       for (const u of this.units) {
         if (this.hasCat(state, u)) continue;
         const f = this.free(state, u);
-        if (f.length === 1) forced.add(f[0]);
+        if (f.length === 1 && !forced.has(f[0])) forced.set(f[0], u);
       }
-      if (!forced.size) return true;
-      for (const i of forced) {
-        if (state[i] !== UNKNOWN) return false; // two forced cats see each other
+      if (!forced.size) return { ok: true, chain };
+      for (const [i, u] of forced) {
+        if (state[i] !== UNKNOWN) {
+          // Two forced cats in each other's way.
+          const other = chain.find((x) => this.seen[x.cell].includes(i))!;
+          return { ok: false, chain, clash: { cell: i, unit: u, other: other.cell } };
+        }
         this.place(state, i);
+        chain.push({ cell: i, unit: u });
       }
     }
-    return !this.broken(state);
+    const empty = this.emptyUnit(state);
+    return empty ? { ok: false, chain, empty } : { ok: true, chain };
   }
 
   private whatIf(state: Uint8Array): Step | null {
@@ -365,19 +407,34 @@ export class Solver {
       for (const i of f) {
         if (tried.has(i)) continue;
         tried.add(i);
-        const copy = state.slice();
-        this.place(copy, i);
-        if (!this.propagate(copy)) {
-          const r = Math.floor(i / this.n) + 1, c = (i % this.n) + 1;
-          return {
-            level: TECH.whatIf, place: -1, cross: [i], focus: [this.rows[r - 1], this.cols[c - 1]],
-            text: `Stel dat er een ${t().one} staat op rij ${r}, kolom ${c}. Dan moeten er meteen andere ${t().many} ` +
-              `op hun laatste plekje, en die zitten elkaar in de weg. Daar kan dus geen ${t().one}.`,
-          };
-        }
+        const step = this.whatIfFor(state, i);
+        if (step) return step;
       }
     return null;
   }
+
+  private explainWhatIf(i: number, res: WhatIf): string {
+    const one = t().one;
+    const out = [`Stel dat er een ${one} staat op ${this.cellName(i)}.`];
+    res.chain.forEach((x, k) => {
+      out.push(`${k === 0 ? 'Dan' : 'Daarna'} heeft ${this.unitName(x.unit)} nog maar één plek: ${this.cellName(x.cell)}.`);
+    });
+    if (res.empty) {
+      out.push(`${res.chain.length ? 'Maar dan' : 'Dan'} blijft er voor ${this.unitName(res.empty)} geen enkel vakje over.`);
+    } else if (res.clash) {
+      out.push(`Dan moet ook de ${one} van ${this.unitName(res.clash.unit)} op ${this.cellName(res.clash.cell)}, ` +
+        `maar die zit de ${one} op ${this.cellName(res.clash.other)} in de weg.`);
+    }
+    out.push(`Dat kan niet. Op ${this.cellName(i)} kan dus geen ${one}.`);
+    return out.join(' ');
+  }
+}
+
+interface WhatIf {
+  ok: boolean;
+  chain: { cell: number; unit: Unit }[];
+  empty?: Unit;
+  clash?: { cell: number; unit: Unit; other: number };
 }
 
 export interface Grade {

@@ -16,6 +16,8 @@ export interface Theme {
   soundText: string;
   /** Word for the coat picker heading */
   coatWord: string;
+  /** Name of the lessons */
+  school: string;
 }
 
 export const THEMES: Theme[] = [
@@ -26,6 +28,7 @@ export const THEMES: Theme[] = [
     worlds: ['Kattenmand', 'Vensterbank', 'Tuinmuur', 'Dakgoot', 'Schoorsteen', 'Kerktoren', 'Vuurtoren', 'Wolkenrand', 'Sterrenhemel', 'Maanlicht'],
     soundText: 'Zachte geluidjes bij kruisjes en katten, en een miauw als je klaar bent.',
     coatWord: 'Vacht',
+    school: 'Kattenschool',
   },
   {
     id: 'pandas', label: "Rode panda's", app: 'Pandakwartier',
@@ -34,6 +37,7 @@ export const THEMES: Theme[] = [
     worlds: ['Bamboebos', 'Boomtak', 'Mosheuvel', 'Bergbeek', 'Nevelwoud', 'Rotswand', 'Wolkenwoud', 'Sneeuwtop', 'Sterrenberg', 'Maanlicht'],
     soundText: "Zachte geluidjes bij kruisjes en panda's, en een piepje als je klaar bent.",
     coatWord: 'Panda',
+    school: 'Pandaschool',
   },
 ];
 

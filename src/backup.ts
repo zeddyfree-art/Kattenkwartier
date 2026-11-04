@@ -53,6 +53,7 @@ export function mergeProgress(a: Progress, b: Progress): Progress {
     freePoints: Math.max(a.freePoints ?? 0, b.freePoints ?? 0),
     freeSolved: Math.max(a.freeSolved ?? 0, b.freeSolved ?? 0),
     top,
+    lessons: { ...(a.lessons ?? {}), ...(b.lessons ?? {}) },
   };
 }
 

@@ -14,6 +14,7 @@ import {
   PALETTE_UNLOCKS, TITLE_POINTS, addTopScore, dailyFor, dailyStreak, dayKey, isUnlocked, load, progress, save, saveProgress, saveSettings, settings, titleFor, titleName, totalPoints, unlockTitle,
 } from './store';
 import { APP_VERSION, CHANGELOG, applyUpdate, watchForUpdates } from './update';
+import { hasLesson, initSchool, lessonForWorld, openLesson, schoolStatus } from './schoolUi';
 
 /** Apply the chosen look: theme, animal, palette (also the colour names in hints) and sound. */
 function applyLook() {
@@ -37,7 +38,7 @@ function applyTexts() {
   const w = words();
   const map: Record<string, string> = {
     one: w.one, many: w.many, One: w.One, Many: w.Many, app: w.app,
-    place: `${w.One} plaatsen`, mine: `Mijn ${w.many}`, soundText: w.soundText, coatWord: w.coatWord,
+    place: `${w.One} plaatsen`, mine: `Mijn ${w.many}`, soundText: w.soundText, coatWord: w.coatWord, school: w.school,
   };
   document.querySelectorAll<HTMLElement>('[data-t]').forEach((el) => { el.textContent = map[el.dataset.t!] ?? el.textContent; });
   document.title = w.app;
@@ -55,6 +56,7 @@ function regionStyle(el: HTMLElement, k: number) {
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const homeEl = $('home');
 const gameEl = $('game');
+const schoolEl = $('school');
 const boardEl = $('board');
 const trackerEl = $('tracker');
 const loadingEl = $('loading');
@@ -100,9 +102,10 @@ function worldOpen(n: number, w: number): boolean {
   return w === 0 || solvedInWorld(n, w - 1) >= LEVELS_PER_WORLD / 2;
 }
 
-function show(screen: 'home' | 'game') {
+function show(screen: 'home' | 'game' | 'school') {
   homeEl.hidden = screen !== 'home';
   gameEl.hidden = screen !== 'game';
+  schoolEl.hidden = screen !== 'school';
   if (screen === 'home') renderHome();
   window.scrollTo(0, 0);
 }
@@ -125,6 +128,7 @@ function renderHome() {
   $('btn-free').textContent = settings.size === LEVEL_SIZE ? 'Vrij spel' : `Vrij spel ${settings.size}×${settings.size}`;
 
   renderDaily();
+  $('school-status').textContent = schoolStatus();
   const worlds = $('worlds');
   worlds.replaceChildren();
   if (!pack) {
@@ -140,8 +144,18 @@ function renderHome() {
     card.innerHTML = `
       <div class="world-head">
         <div><h3>Wereld ${wi + 1}: ${worldName(wi)}</h3><p>${open ? w.intro.replace('{one}', words().one) : `🔒 Los ${LEVELS_PER_WORLD / 2} levels op in ${worldName(wi - 1)} om deze wereld te openen.`}</p></div>
-        <div class="world-stars">★ ${stars}/${LEVELS_PER_WORLD * 3}</div>
+        <div class="world-side">
+          <div class="world-stars">★ ${stars}/${LEVELS_PER_WORLD * 3}</div>
+        </div>
       </div>`;
+    if (hasLesson(wi)) {
+      const b = document.createElement('button');
+      b.className = 'secondary small world-lesson';
+      b.textContent = '🎓 Les';
+      b.setAttribute('aria-label', `Les voor wereld ${wi + 1}`);
+      b.addEventListener('click', () => void openLesson(lessonForWorld(wi)));
+      card.querySelector('.world-side')!.append(b);
+    }
     const grid = document.createElement('div');
     grid.className = 'level-grid';
     for (let k = 0; k < LEVELS_PER_WORLD; k++) {
@@ -837,6 +851,14 @@ watchForUpdates(() => { $('update-banner').hidden = false; });
 $('btn-update').addEventListener('click', () => {
   saveGame();
   void applyUpdate();
+});
+
+// ---------- School ----------
+
+initSchool({
+  regionStyle,
+  catHtml: () => calico(),
+  showScreen: (school) => show(school ? 'school' : 'home'),
 });
 
 // ---------- Start ----------
