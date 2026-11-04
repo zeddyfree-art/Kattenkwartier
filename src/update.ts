@@ -11,6 +11,7 @@ export const APP_VERSION = __APP_VERSION__;
 
 /** Newest first. Shown once after an update. */
 export const CHANGELOG: { version: string; items: string[] }[] = [
+  { version: '0.7.2', items: ['Blokkade-hints leggen nu precies uit wáárom er geen panda of kat kan staan, en tonen de kleur die het verschil maakt'] },
   { version: '0.7.1', items: ['Auto-kruisjes en Geluid hebben nu een duidelijke aan/uit-schakelaar (Instellingen)'] },
   {
     version: '0.7.0',

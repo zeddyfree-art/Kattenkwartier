@@ -198,7 +198,7 @@ export class Solver {
 
   private blocker(state: Uint8Array): Step | null {
     // A cell is impossible if a cat there would leave some unit without free cells.
-    let best: Step | null = null;
+    let best: { unit: Unit; cells: number[] } | null = null;
     for (let i = 0; i < state.length; i++) {
       if (state[i] !== UNKNOWN) continue;
       const blocked = new Set(this.seen[i]);
@@ -207,19 +207,76 @@ export class Solver {
         if (u.cells.includes(i) || this.hasCat(state, u)) continue;
         const f = this.free(state, u);
         if (f.length && f.every((j) => blocked.has(j))) {
-          const r = Math.floor(i / this.n) + 1, c = (i % this.n) + 1;
-          const step: Step = {
-            level: TECH.blocker, place: -1, cross: [i], focus: [u],
-            text: `Een ${t().one} op rij ${r}, kolom ${c} zou alle vrije vakjes van ${this.unitName(u)} blokkeren. Daar kan dus geen ${t().one}.`,
-          };
           // Collect all cells that block the same unit for a more useful hint.
-          if (!best) best = step;
-          else if (best.focus[0] === u) best.cross.push(i);
+          if (!best) best = { unit: u, cells: [i] };
+          else if (best.unit === u) best.cells.push(i);
           break;
         }
       }
     }
-    return best;
+    if (!best) return null;
+    const { unit: u, cells } = best;
+    const { text, why } = this.explainBlock(state, cells[0], u);
+    const more = cells.slice(1).map((j) => `rij ${Math.floor(j / this.n) + 1} kolom ${(j % this.n) + 1}`);
+    return {
+      level: TECH.blocker, place: -1, cross: cells,
+      // Show the blocked unit and whatever does the blocking (the colour of the cell, its row or column),
+      // so the colours that matter are not dimmed.
+      focus: [u, ...why.filter((w) => w !== u)],
+      text: text + (more.length ? ` Om dezelfde reden kan er ook geen ${t().one} op ${this.list(more)}.` : ''),
+    };
+  }
+
+  private cellName(i: number): string {
+    return `rij ${Math.floor(i / this.n) + 1}, kolom ${(i % this.n) + 1}`;
+  }
+
+  /** Spell out how a cat on cell i would take away every free cell of unit u. */
+  private explainBlock(state: Uint8Array, i: number, u: Unit): { text: string; why: Unit[] } {
+    const n = this.n;
+    const r = Math.floor(i / n), c = i % n;
+    const reg = this.regs[this.regionOf[i]];
+    const f = this.free(state, u);
+    const byRegion: number[] = [], byRow: number[] = [], byCol: number[] = [], byTouch: number[] = [];
+    for (const j of f) {
+      const jr = Math.floor(j / n), jc = j % n;
+      if (this.regionOf[j] === this.regionOf[i]) byRegion.push(j);
+      else if (jr === r) byRow.push(j);
+      else if (jc === c) byCol.push(j);
+      else byTouch.push(j);
+    }
+    const colour = this.unitName(reg);
+    const parts: string[] = [];
+    const why: Unit[] = [];
+    const total = f.length;
+    // "8 daarvan zijn" / "één daarvan is" / "die zijn allemaal" / "dat is"
+    const subject = (k: number, one: string, many: string) =>
+      k === total
+        ? (k === 1 ? `dat ${one}` : `die ${many} allemaal`)
+        : (k === 1 ? `één daarvan ${one}` : `${k} daarvan ${many}`);
+    if (byRegion.length) {
+      why.push(reg);
+      parts.push(`${subject(byRegion.length, 'is', 'zijn')} ook ${colour}`);
+    }
+    if (byRow.length) {
+      why.push(this.rows[r]);
+      parts.push(`${subject(byRow.length, 'ligt', 'liggen')} in dezelfde rij`);
+    }
+    if (byCol.length) {
+      why.push(this.cols[c]);
+      parts.push(`${subject(byCol.length, 'ligt', 'liggen')} in dezelfde kolom`);
+    }
+    if (byTouch.length) parts.push(`${subject(byTouch.length, 'ligt', 'liggen')} er vlak naast`);
+    const free = f.length === 1 ? 'nog maar één vrij vakje' : `nog ${f.length} vrije vakjes`;
+    const text =
+      `${this.cap(this.unitName(u))} heeft ${free}. Stel dat er een ${t().one} staat op ${this.cellName(i)} (${colour}): ` +
+      `${this.list(parts)}. ${total === 1 ? 'Dat valt' : 'Die vallen'} dan af, dus blijft er in ${this.unitName(u)} geen plek over voor een ${t().one}. ` +
+      `Op ${this.cellName(i)} kan dus geen ${t().one}.`;
+    return { text, why };
+  }
+
+  private cap(s: string): string {
+    return s.charAt(0).toUpperCase() + s.slice(1);
   }
 
   /**
